@@ -20,7 +20,7 @@ sh build.sh
 ### **Running the Project**
 Run the following command to start the project:
 ```sh
-./run.sh
+sh run.sh
 ```
 
 ## **Dependencies**
