@@ -12,4 +12,6 @@ void kernel_main(void) {
     }
     errno = EOVERFLOW;
     printf("errno: %s\n", strerror(errno));
+
+    perror("perror");
 }
