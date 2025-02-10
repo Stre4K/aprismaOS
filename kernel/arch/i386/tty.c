@@ -41,14 +41,15 @@ void terminal_putchar(char c) {
     if (c == '\n') {
         terminal_column = 0;
         if (++terminal_row == VGA_HEIGHT) {
-            terminal_row = 0;
+            terminal_scroll();
+            // terminal_row = 0;
         }
     } else {
         terminal_putentryat(uc, terminal_color, terminal_column, terminal_row);
         if (++terminal_column == VGA_WIDTH) {
             terminal_column = 0;
             if (++terminal_row == VGA_HEIGHT) {
-                terminal_row = 0;
+                terminal_scroll();
             }
         }
     }
@@ -60,4 +61,30 @@ void terminal_write(const char *data, size_t size) {
 
 void terminal_writestring(const char *data) {
     terminal_write(data, strlen(data));
+}
+
+void terminal_clear_line(const size_t terminal_row) {
+    if (terminal_row >= VGA_HEIGHT) {
+        return;
+    }
+    for (size_t x = 0; x < VGA_WIDTH; x++) {
+        terminal_buffer[terminal_row * VGA_WIDTH + x] =
+            vga_entry(' ', terminal_color);
+    }
+}
+
+void terminal_scroll(void) {
+    // Move each row up by copying the next row
+    for (size_t y = 1; y < VGA_HEIGHT; y++) {
+        for (size_t x = 0; x < VGA_WIDTH; x++) {
+            terminal_buffer[(y - 1) * VGA_WIDTH + x] =
+                terminal_buffer[y * VGA_WIDTH + x];
+        }
+    }
+
+    // Clear the last row (fill it with spaces)
+    terminal_clear_line(VGA_HEIGHT - 1);
+
+    // Keep cursor on the last row
+    terminal_row = VGA_HEIGHT - 1;
 }

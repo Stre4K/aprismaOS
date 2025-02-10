@@ -5,7 +5,9 @@
 
 void terminal_initialize(void);
 void terminal_putchar(char c);
-void terminal_write(const char* data, size_t size);
-void terminal_writestring(const char* data);
+void terminal_write(const char *data, size_t size);
+void terminal_writestring(const char *data);
+void terminal_clear_line(const size_t terminal_row);
+void terminal_scroll(void);
 
 #endif
