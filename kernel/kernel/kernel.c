@@ -1,7 +1,7 @@
+#include <errno.h>
 #include <kernel/tty.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/errno.h>
 
 void kernel_main(void) {
     terminal_initialize();

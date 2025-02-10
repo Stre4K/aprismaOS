@@ -1,5 +1,5 @@
+#include <errno.h>
 #include <string.h>
-#include <sys/errno.h>
 
 char *strerror(int errnum) {
 #define STERROR(ERR) \
