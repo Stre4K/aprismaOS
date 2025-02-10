@@ -1,5 +1,6 @@
 #include <kernel/tty.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/errno.h>
 
 void kernel_main(void) {
@@ -9,4 +10,6 @@ void kernel_main(void) {
     if (EPERM == 1) {
         printf("EPERM\n");
     }
+    errno = EOVERFLOW;
+    printf("errno: %s\n", strerror(errno));
 }
