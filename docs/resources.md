@@ -1,0 +1,15 @@
+## Resources
+
+Here are some useful resources for implementing **aprismaOS**:
+
+### General OS Development
+- [**OSDev Wiki**](https://wiki.osdev.org/) – A comprehensive resource for operating system development.
+
+### Bootloader & Multiboot
+- [**Bootloader Multiboot Guide**](https://thejat.in/learn/the-bootloader-multiboot) – A detailed guide on implementing a multiboot-compatible bootloader.
+- [**Multiboot Specification (PDF)**](https://nongnu.askapache.com/grub/phcoder/multiboot.pdf) – Official Multiboot specification document.
+
+### CPU & Architecture
+- [**Intel 64 Architecture Software Developer’s Manual**](https://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-vol-3a-part-1-manual.pdf) – Essential documentation on Intel 64 and IA-32 architectures.
+
+
