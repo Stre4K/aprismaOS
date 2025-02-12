@@ -2,7 +2,9 @@
 .set ALIGN,    1<<0             # align loaded modules on page boundaries
 .set MEMINFO,  1<<1             # provide memory map
 .set FLAGS,    ALIGN | MEMINFO  # this is the Multiboot 'flag' field
-.set MAGIC,    0x1BADB002       # 'magic number' lets bootloader find the header
+.set MAGIC,    0x1BADB002       # 'magic number' lets bootloader find the header MultiBoot1
+#.set MAGIC,    0xE85250D6       # 'magic number' lets bootloader find the header Multiboot2
+#.set MAGIC,    0x36D76289       # 'magic number' lets bootloader find the header Multiboot1 and Multiboot2
 .set CHECKSUM, -(MAGIC + FLAGS) # checksum of above, to prove we are multiboot
 
 # Declare a header as in the Multiboot Standard.
