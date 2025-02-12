@@ -11,5 +11,5 @@ Here are some useful resources for implementing **aprismaOS**:
 
 ### CPU & Architecture
 - [**Intel 64 Architecture Software Developer’s Manual**](https://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-vol-3a-part-1-manual.pdf) – Essential documentation on Intel 64 and IA-32 architectures.
-
+- [** Intel Combined Volume Set of Intel 64 and IA-32 Architecture Software Developer’s Manuals**](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html) - Current general and specific documentation on Intel 64 and IA-32 architectures.
 
