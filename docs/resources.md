@@ -5,6 +5,12 @@ Here are some useful resources for implementing **aprismaOS**:
 ### General OS Development
 - [**OSDev Wiki**](https://wiki.osdev.org/) – A comprehensive resource for operating system development.
 
+### Device Drivers
+- [**Linux Device Driver 3**](https://lwn.net/Kernel/LDD3/) - A book of linux device drivers.
+
+### Syscalls
+- [**Linux Syscall Table**]( https://filippo.io/linux-syscall-table/) - A comprehensive list of Linux syscalls.
+
 ### Bootloader & Multiboot
 - [**Bootloader Multiboot Guide**](https://thejat.in/learn/the-bootloader-multiboot) – A detailed guide on implementing a multiboot-compatible bootloader.
 - [**Multiboot Specification (PDF)**](https://nongnu.askapache.com/grub/phcoder/multiboot.pdf) – Official Multiboot specification document.
