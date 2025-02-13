@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <errno.h>
 #include <kernel/tty.h>
 #include <stdio.h>
@@ -14,4 +15,7 @@ void kernel_main(void) {
     printf("errno: %s\n", strerror(errno));
 
     perror("perror");
+
+    assert(0 == 0);
+    assert(0 == 1);
 }
