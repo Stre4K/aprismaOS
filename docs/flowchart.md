@@ -8,9 +8,9 @@ graph TD;
     F --> G["Global Constructors (crtbegin.o)"]
     G --> H[Jump to kernel_main]
     H --> I[Run Kernel]
-    I -->|"If kernel_main() returns"| J[Call _fini ("crti.S")]
+    I -->|"If kernel_main() returns"| J["Call _fini (crti.S)"]
     J --> K["Global Destructors (crtend.o)"]
-    K --> L[CPU Halt (hlt)]
+    K --> L["CPU Halt (hlt)"]
 
     subgraph "C Runtime Initialization"
         F --> G
