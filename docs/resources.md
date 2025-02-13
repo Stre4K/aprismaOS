@@ -11,9 +11,17 @@ Here are some useful resources for implementing **aprismaOS**:
 ### Syscalls
 - [**Linux Syscall Table**]( https://filippo.io/linux-syscall-table/) - A comprehensive list of Linux syscalls.
 
+---
+
 ### Bootloader & Multiboot
 - [**Bootloader Multiboot Guide**](https://thejat.in/learn/the-bootloader-multiboot) – A detailed guide on implementing a multiboot-compatible bootloader.
 - [**Multiboot Specification (PDF)**](https://nongnu.askapache.com/grub/phcoder/multiboot.pdf) – Official Multiboot specification document.
+
+#### 64-bit Bootloader reference
+- [**64-bit Bootloader Guide**](http://ringzeroandlower.com/2017/08/08/x86-64-kernel-boot.html) – A detailed guide on implementing a 64-bit bootloader.
+- [**64-bit Bootloader Github Repository**](https://github.com/missimer/x86-64-kernel-boot/) – Github repository for guide.
+
+---
 
 ### CPU & Architecture
 - [**Intel 64 Architecture Software Developer’s Manual**](https://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-vol-3a-part-1-manual.pdf) – Essential documentation on Intel 64 and IA-32 architectures.
