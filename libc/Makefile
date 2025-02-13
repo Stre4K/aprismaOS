@@ -34,6 +34,7 @@ stdio/printf.o \
 stdio/putchar.o \
 stdio/puts.o \
 stdio/perror.o \
+stdlib/assert.o \
 stdlib/abort.o \
 stdlib/errno.o \
 string/memcmp.o \
