@@ -28,7 +28,7 @@ AprismaOS is a work in progress, with several planned features and enhancements.
 ---
 
 ## **Current Focus**
-- [ ] **Basic Output & Debugging**
+- [X] **Basic Output & Debugging**
   - Implement `printf()` for variable printing.
   - Implement an `assert()` function for debugging.
 
