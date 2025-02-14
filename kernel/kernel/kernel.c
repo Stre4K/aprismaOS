@@ -16,6 +16,8 @@ void kernel_main(void) {
 
     perror("perror");
 
+    printf("test %d\n", 1020);
+
     assert(0 == 0);
     assert(0 == 1);
 }
