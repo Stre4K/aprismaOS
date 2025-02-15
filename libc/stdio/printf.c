@@ -50,6 +50,22 @@ static void itoa(int value, char *str, int base) {
     str[j] = '\0';
 }
 
+// Function to convert float to string
+static void ftoa(double value, char *str, int precision) {
+    int int_part = (int)value;
+    double frac_part = value - int_part;
+
+    itoa(int_part, str, 10);
+    size_t len = strlen(str);
+    str[len] = '.';
+
+    for (int i = 0; i < precision; i++) {
+        frac_part *= 10;
+    }
+
+    itoa((int)(frac_part + 0.5), str + len + 1, 10);
+}
+
 // Custom printf function
 int printf(const char *restrict format, ...) {
     va_list parameters;
@@ -112,6 +128,19 @@ int printf(const char *restrict format, ...) {
                 unsigned int num = va_arg(parameters, unsigned int);
                 char buffer[32];
                 itoa(num, buffer, 10);
+                size_t len = strlen(buffer);
+                if (maxrem < len) {
+                    errno = EOVERFLOW;
+                    return -1;
+                }
+                if (!print(buffer, len)) return -1;
+                written += len;
+                break;
+            }
+            case 'f': {  // Floating point
+                double num = va_arg(parameters, double);
+                char buffer[64];
+                ftoa(num, buffer, 6);  // Default precision: 6 decimal places
                 size_t len = strlen(buffer);
                 if (maxrem < len) {
                     errno = EOVERFLOW;
