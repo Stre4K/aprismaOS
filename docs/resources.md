@@ -4,7 +4,7 @@ Here are some useful resources for implementing **aprismaOS**:
 
 ### General OS Development
 - [**OSDev Wiki**](https://wiki.osdev.org/) – A comprehensive resource for operating system development.
-- [**Operating System Development Series**] (http://brokenthorn.com/Resources/OSDevIndex.html) - From Broken Thorn Entertainment.
+- [**Operating System Development Series**](http://brokenthorn.com/Resources/OSDevIndex.html) - From Broken Thorn Entertainment.
 - [**The Little Book about OS Development**](https://littleosbook.github.io/book.pdf) - By Erik Helin and Adam Renberg
 - [**The Design of the UNIX Operating System**](https://github.com/jyfc/ebook/tree/master/03_operating_system) - By Maurice Bach.
 
