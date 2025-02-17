@@ -48,6 +48,10 @@ AprismaOS is a work in progress, with several planned features and enhancements.
   - Implement **file I/O** system calls.
   - Implement a simple **networking stack** (sockets).
 
+- [ ] **Better Platform Compatibility**
+  - Improve support for building on different systems and architectures.
+  - Resolve cross-platform build issues to ensure smoother development.
+
 ---
 
 ## **Beginner-Friendly Goals**
@@ -112,6 +116,10 @@ AprismaOS is a work in progress, with several planned features and enhancements.
 
 AprismaOS uses shell scripts and Makefiles to build all required files.
 
+### **Disclaimer**
+At the moment, building on different systems and architectures may encounter various issues.
+Resolving these compatibility problems is a priority for future development.
+
 ### **Build Instructions**
 Run the following command to build the project:
 ```sh
@@ -128,9 +136,12 @@ sh run.sh
 
 To build AprismaOS, you need the following:
 
-- **i686-elf toolchain** – (As discussed above).
+- **i686-elf toolchain** – Required for building the kernel.
 - **GRUB** – Required for the `grub-mkrescue` command, along with the necessary runtime files. _(Needed for building the ISO, not available on macOS.)_
 - **Xorriso** – The ISO creation engine used by `grub-mkrescue`.
 - **GNU Make** – Version **4.0 or later**.
 - **QEMU** – _(Optional)_ For testing the operating system.
+
+### **macOS Reccomendation**
+It is recommended to install all dependencies using [**Homebrew**](https://brew.sh/).
 
