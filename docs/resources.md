@@ -29,3 +29,5 @@ Here are some useful resources for implementing **aprismaOS**:
 - [**Intel Combined Volume Set of Intel 64 and IA-32 Architecture Software Developer’s Manuals**](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html) - Current general and specific documentation on Intel 64 and IA-32 architectures.
 - [**ELF-64 Object File Format (PDF)**](https://www.uclibc.org/docs/elf-64-gen.pdf) - A general guide on the ELF-64 object file format.
 
+### Disk
+- [**Disk access using BIOS INT 13H**](https://wiki.osdev.org/Disk_access_using_the_BIOS_(INT_13h) - A guide on using BIOS INT 13H to access a hard drive.
