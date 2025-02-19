@@ -3,9 +3,15 @@
 #include <kernel/tty.h>
 #include <stdio.h>
 #include <string.h>
+#include <kernel/gdt.h>
 
 void kernel_main(void) {
     terminal_initialize();
+
+    init_gdt();
+    printf("Loaded GDT\n");
+
+
     printf("Hello, kernel TEST World!\n");
     printf("test\n");
     if (EPERM == 1) {
@@ -19,5 +25,5 @@ void kernel_main(void) {
     printf("test %d\n", 1020);
 
     assert(0 == 0);
-    assert(0 == 1);
+    //assert(0 == 1);
 }

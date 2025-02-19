@@ -38,8 +38,11 @@ AprismaOS is a work in progress, with several planned features and enhancements.
   - Improve support for building on different systems and architectures.
   - Resolve cross-platform build issues to ensure smoother development.
 
+- [X] **32-bit Protected mode**
+    - Implement a 32-bit Global Descriptor Table (GDT).
+
 - [ ] **32-bit Protected mode**
-    - Implement a 32-bit Global Descriptor Table (GDT) and TSS.
+    - Implement a Task State Segment (TSS).
 
 - [ ] **Architecture Support**
   - Support i386/i686 (32-bit x86).
