@@ -3,7 +3,9 @@
 Welcome to **AprismaOS**, my grand project to build my own operating system, **Aprisma**!
 This project is a **work in progress** and subject to major changes.
 
-AprismaOS is primarily a **learning project** focused on OS kernel development and gaining experience with lower-level programming. It currently targets the **i386-elf/i686-elf** architecture (32-bit x86).
+AprismaOS is primarily a **learning project** focused on OS kernel development and
+gaining experience with lower-level programming. It currently targets the **i386-elf/i686-elf**
+architecture (32-bit x86) but focus is on implementing **64-bit mode**.
 
 ---
 
@@ -32,9 +34,12 @@ AprismaOS is a work in progress, with several planned features and enhancements.
   - Implement `printf()` for variable printing.
   - Implement an `assert()` function for debugging.
 
-- [ ] **Memory Management**
-  - Create a memory manager.
-  - Implement heap allocation (`malloc()` / `free()` system calls).
+- [ ] **Better Platform Compatibility**
+  - Improve support for building on different systems and architectures.
+  - Resolve cross-platform build issues to ensure smoother development.
+
+- [ ] **32-bit Protected mode**
+    - Implement a 32-bit Global Descriptor Table (GDT) and TSS.
 
 - [ ] **Architecture Support**
   - Support i386/i686 (32-bit x86).
@@ -48,9 +53,9 @@ AprismaOS is a work in progress, with several planned features and enhancements.
   - Implement **file I/O** system calls.
   - Implement a simple **networking stack** (sockets).
 
-- [ ] **Better Platform Compatibility**
-  - Improve support for building on different systems and architectures.
-  - Resolve cross-platform build issues to ensure smoother development.
+- [ ] **Memory Management**
+  - Create a memory manager.
+  - Implement heap allocation (`malloc()` / `free()` system calls).
 
 ---
 
