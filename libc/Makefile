@@ -43,6 +43,7 @@ string/memmove.o \
 string/memset.o \
 string/strlen.o \
 string/strerror.o \
+string/strcpy.o \
 time/sleep.o \
 
 HOSTEDOBJS=\
