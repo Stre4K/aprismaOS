@@ -14,16 +14,16 @@ void init_gdt(void) {
     gdt_ptr.limit = sizeof(struct gdt_entry_struct) * 5 - 1;
     gdt_ptr.base = (uint32_t) &gdt_entires;
 
-    setGdtGate(0, 0, 0, 0, 0); // NULL SEGMENT
-    setGdtGate(1, 0, 0xFFFFFFFF, 0x9A, 0xCF); // KERNEL CODE SEGMENT
-    setGdtGate(2, 0, 0xFFFFFFFF, 0x92, 0xCF); // KERNEL DATA SEGMENT
-    setGdtGate(3, 0, 0xFFFFFFFF, 0xFA, 0xCF); // USER CODE SEGMENT
-    setGdtGate(4, 0, 0xFFFFFFFF, 0xF2, 0xCF); // USER DATA SEGMENT
+    set_gdt_gate(0, 0, 0, 0, 0); // NULL SEGMENT
+    set_gdt_gate(1, 0, 0xFFFFFFFF, 0x9A, 0xCF); // KERNEL CODE SEGMENT
+    set_gdt_gate(2, 0, 0xFFFFFFFF, 0x92, 0xCF); // KERNEL DATA SEGMENT
+    set_gdt_gate(3, 0, 0xFFFFFFFF, 0xFA, 0xCF); // USER CODE SEGMENT
+    set_gdt_gate(4, 0, 0xFFFFFFFF, 0xF2, 0xCF); // USER DATA SEGMENT
 
     gdt_flush((uint32_t) &gdt_ptr);
 }
 
-void setGdtGate(uint32_t num, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags) {
+void set_gdt_gate(uint32_t num, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags) {
     gdt_entires[num].base_low = base & 0xFFFF;
     gdt_entires[num].base_middle = (base >> 16) & 0xFF;
     gdt_entires[num].base_high = (base >> 24) & 0xFF;
