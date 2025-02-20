@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
 
 // Function to print a string to output
 static bool print(const char *data, size_t length) {
@@ -64,6 +65,32 @@ static void ftoa(double value, char *str, int precision) {
     }
 
     itoa((int)(frac_part + 0.5), str + len + 1, 10);
+}
+
+// Function to convert pointer to hex string
+static void ptoa(void *ptr, char *str) {
+    uintptr_t addr = (uintptr_t)ptr;
+    char buffer[32];
+    int i = 0;
+
+    if (addr == 0) {
+        strcpy(str, "(nil)");
+        return;
+    }
+
+    while (addr != 0) {
+        int rem = addr % 16;
+        buffer[i++] = (rem > 9) ? (rem - 10) + 'a' : rem + '0';
+        addr /= 16;
+    }
+
+    str[0] = '0';
+    str[1] = 'x';
+    int j;
+    for (j = 0; j < i; j++) {
+        str[j + 2] = buffer[i - j - 1];
+    }
+    str[j + 2] = '\0';
 }
 
 // Custom printf function
@@ -155,6 +182,19 @@ int printf(const char *restrict format, ...) {
                 int num = va_arg(parameters, int);
                 char buffer[32];
                 itoa(num, buffer, 16);
+                size_t len = strlen(buffer);
+                if (maxrem < len) {
+                    errno = EOVERFLOW;
+                    return -1;
+                }
+                if (!print(buffer, len)) return -1;
+                written += len;
+                break;
+            }
+            case 'p': {
+                void *ptr = va_arg(parameters, void *);
+                char buffer[32];
+                ptoa(ptr, buffer);
                 size_t len = strlen(buffer);
                 if (maxrem < len) {
                     errno = EOVERFLOW;
