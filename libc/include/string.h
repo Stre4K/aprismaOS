@@ -15,6 +15,7 @@ void *memset(void *, int, size_t);
 size_t strlen(const char *);
 char *strerror(int errnum);
 char *strcpy(char *__restrict dest, const char *__restrict src);
+int strcmp(const char *s1, const char *s2);
 
 #ifdef __cplusplus
 }
