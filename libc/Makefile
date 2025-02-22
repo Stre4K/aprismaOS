@@ -37,6 +37,7 @@ stdio/perror.o \
 stdlib/assert.o \
 stdlib/abort.o \
 stdlib/errno.o \
+stdlib/qsort.o \
 string/memcmp.o \
 string/memcpy.o \
 string/memmove.o \
