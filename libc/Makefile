@@ -46,6 +46,7 @@ string/strlen.o \
 string/strerror.o \
 string/strcpy.o \
 string/strcmp.o \
+string/strrev.o \
 time/sleep.o \
 
 HOSTEDOBJS=\
