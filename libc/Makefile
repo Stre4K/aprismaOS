@@ -49,6 +49,7 @@ string/strcmp.o \
 string/strrev.o \
 time/sleep.o \
 math/pow.o \
+math/sqrt.o \
 
 HOSTEDOBJS=\
 $(ARCH_HOSTEDOBJS) \
