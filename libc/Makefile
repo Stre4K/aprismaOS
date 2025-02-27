@@ -51,6 +51,7 @@ time/sleep.o \
 math/pow.o \
 math/sqrt.o \
 math/abs.o \
+math/max.o \
 
 HOSTEDOBJS=\
 $(ARCH_HOSTEDOBJS) \
