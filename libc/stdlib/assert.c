@@ -1,5 +1,11 @@
 // assert.c
-#include "assert.h"
+// <assert.h>
+// Author: Stre4K
+// Date: 2025-02-28
+
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 void __assert_fail(const char *expr, const char *file, int line,
                    const char *func) {

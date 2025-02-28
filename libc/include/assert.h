@@ -1,9 +1,9 @@
-// assert.h
-#ifndef ASSERT_H
-#define ASSERT_H
+// libc/include/assert.h
+// Author: Stre4K
+// Date: 2025-02-28
 
-#include <stdio.h>   // For printf or custom I/O functions
-#include <stdlib.h>  // For abort or custom system halt
+#ifndef _ASSERT_H
+#define _ASSERT_H
 
 #ifdef NDEBUG
 #define assert(condition) ((void)0)
@@ -19,4 +19,4 @@
 void __assert_fail(const char *expr, const char *file, int line,
                    const char *func);
 
-#endif  // ASSERT_H
+#endif  // _ASSERT_H
