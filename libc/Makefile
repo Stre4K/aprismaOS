@@ -52,6 +52,7 @@ math/pow.o \
 math/sqrt.o \
 math/abs.o \
 math/max.o \
+math/min.o \
 
 HOSTEDOBJS=\
 $(ARCH_HOSTEDOBJS) \

@@ -8,6 +8,7 @@
 int pow(int base, int exponent);
 double sqrt(double x);
 int abs(int x);
-int max(int x, int y);
+int max(int a, int b);
+int min(int a, int b);
 
 #endif  //_MATH_H
