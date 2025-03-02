@@ -1,3 +1,7 @@
+// string.h
+// Author: Stre4K
+// Date: 2025-03-02
+
 #ifndef _STRING_H
 #define _STRING_H 1
 
@@ -15,6 +19,7 @@ void *memset(void *, int, size_t);
 size_t strlen(const char *);
 char *strerror(int errnum);
 char *strcpy(char *__restrict dest, const char *__restrict src);
+char *strncpy(char *__restrict dest, const char *__restrict src, size_t n);
 int strcmp(const char *s1, const char *s2);
 void strrev(char *str);
 

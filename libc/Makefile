@@ -45,6 +45,7 @@ string/memset.o \
 string/strlen.o \
 string/strerror.o \
 string/strcpy.o \
+string/strncpy.o \
 string/strcmp.o \
 string/strrev.o \
 time/sleep.o \
