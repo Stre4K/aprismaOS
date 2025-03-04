@@ -1,6 +1,6 @@
 // math.h
 // Author: Stre4K
-// Date: 2025-03-03
+// Date: 2025-03-04
 
 #ifndef _MATH_H
 #define _MATH_H
@@ -11,5 +11,6 @@ int abs(int x);
 int max(int a, int b);
 int min(int a, int b);
 double floor(double x);
+double ceil(double x);
 
 #endif  //_MATH_H
