@@ -52,6 +52,7 @@ time/sleep.o \
 math/pow.o \
 math/sqrt.o \
 math/abs.o \
+math/fabs.o \
 math/max.o \
 math/min.o \
 math/floor.o \
