@@ -1,11 +1,12 @@
 // math.h
 // Author: Stre4K
-// Date: 2025-03-05
+// Date: 2025-03-06
 
 #ifndef _MATH_H
 #define _MATH_H
 
 int pow(int base, int exponent);
+double exp(double x);
 double sqrt(double x);
 int abs(int x);
 double fabs(double x);
