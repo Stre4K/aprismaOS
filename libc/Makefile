@@ -51,6 +51,7 @@ string/strrev.o \
 time/sleep.o \
 math/pow.o \
 math/exp.o \
+math/log.o \
 math/sqrt.o \
 math/abs.o \
 math/fabs.o \
