@@ -7,6 +7,7 @@
 
 int pow(int base, int exponent);
 double exp(double x);
+double log(double x);
 double sqrt(double x);
 int abs(int x);
 double fabs(double x);
