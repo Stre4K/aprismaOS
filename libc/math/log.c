@@ -6,6 +6,7 @@
 #include <math.h>
 
 // Natural logarithm approximation using Newton's method
+// log(x) = ln(x)
 double log(double x) {
     if (x <= 0) return 0;  // log is undefined for x <= 0
 
@@ -13,7 +14,7 @@ double log(double x) {
     double epsilon = 1e-10;
 
     for (int i = 0; i < 100; i++) {  // Limit iterations
-        double e_pow = exp(result);  // We'll implement exp() next
+        double e_pow = exp(result);
         double diff = (e_pow - x) / e_pow;
         if (diff > -epsilon && diff < epsilon) break;
         result -= diff;
