@@ -5,7 +5,7 @@
 #ifndef _MATH_H
 #define _MATH_H
 
-int pow(int base, int exponent);
+double pow(double base, double exponent);
 double exp(double x);
 double log(double x);
 double sqrt(double x);
