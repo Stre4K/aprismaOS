@@ -1,6 +1,6 @@
 // math.h
 // Author: Stre4K
-// Date: 2025-03-06
+// Date: 2025-03-09
 
 #ifndef _MATH_H
 #define _MATH_H
@@ -11,6 +11,7 @@ double log(double x);
 double sqrt(double x);
 int abs(int x);
 double fabs(double x);
+double fmod(double x, double y);
 int max(int a, int b);
 int min(int a, int b);
 double floor(double x);

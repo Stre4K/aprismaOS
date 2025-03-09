@@ -55,6 +55,7 @@ math/log.o \
 math/sqrt.o \
 math/abs.o \
 math/fabs.o \
+math/fmod.o \
 math/max.o \
 math/min.o \
 math/floor.o \
