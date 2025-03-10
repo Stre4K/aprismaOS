@@ -22,3 +22,8 @@ double log(double x) {
 
     return result;
 }
+
+// Base-10 logarithm: log10(x) = ln(x) / ln(10)
+double log10(double x) {
+    return log(x) / 2.30258509299; // ln(10) ≈ 2.30258509299
+}

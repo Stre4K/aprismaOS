@@ -8,6 +8,7 @@
 double pow(double base, double exponent);
 double exp(double x);
 double log(double x);
+double log10(double x);
 double sqrt(double x);
 int abs(int x);
 double fabs(double x);
