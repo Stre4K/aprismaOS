@@ -1,6 +1,6 @@
 // math.h
 // Author: Stre4K
-// Date: 2025-03-09
+// Date: 2025-03-11
 
 #ifndef _MATH_H
 #define _MATH_H
@@ -10,6 +10,7 @@ double exp(double x);
 double log(double x);
 double log10(double x);
 double sqrt(double x);
+double cbrt(double x);
 int abs(int x);
 double fabs(double x);
 double fmod(double x, double y);
