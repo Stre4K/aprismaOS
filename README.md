@@ -37,6 +37,7 @@ AprismaOS is a work in progress, with several planned features and enhancements.
 - [ ] **Better Platform Compatibility**
   - Improve support for building on different systems and architectures.
   - Resolve cross-platform build issues to ensure smoother development.
+  - Improve build procces for implmententation files in libc.
 
 - [X] **32-bit Protected mode**
     - Implement a 32-bit Global Descriptor Table (GDT).
