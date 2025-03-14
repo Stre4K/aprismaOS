@@ -60,6 +60,7 @@ math/max.o \
 math/min.o \
 math/floor.o \
 math/ceil.o \
+math/round.o \
 
 
 HOSTEDOBJS=\
