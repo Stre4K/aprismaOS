@@ -62,6 +62,7 @@ math/floor.o \
 math/ceil.o \
 math/round.o \
 ctype/isdigit.o \
+ctype/isalpha.o \
 
 
 HOSTEDOBJS=\
