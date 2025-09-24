@@ -32,6 +32,7 @@ KERNEL_OBJS=\
 $(KERNEL_ARCH_OBJS) \
 kernel/kernel.o \
 kernel/printk.o \
+kernel/multiboot.o \
 
 OBJS=\
 $(ARCHDIR)/gdt.o \
