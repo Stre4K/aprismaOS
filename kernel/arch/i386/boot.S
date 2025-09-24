@@ -28,11 +28,18 @@ stack_top:
 _start:
 	movl $stack_top, %esp
 
+    # save Multiboot registers
+    movl %eax, %edi
+    movl %ebx, %esi
+
 	# Call the global constructors.
 	call _init
 
 	# Transfer control to the main kernel.
+    push %esi   # pointer to multiboot_info
+    push %edi   # multiboot magic
 	call kernel_main
+    add $8, %esp    # clean up stack (2 arguments * 4 bytes)
 
 	# Hang if kernel_main unexpectedly returns.
 	cli

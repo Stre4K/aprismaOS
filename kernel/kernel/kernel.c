@@ -1,16 +1,24 @@
 #include <assert.h>
 #include <errno.h>
+#include <kernel/gdt.h>
+#include <kernel/multiboot.h>
+#include <kernel/printk.h>
 #include <kernel/tty.h>
 #include <stdio.h>
 #include <string.h>
-#include <kernel/gdt.h>
 
-void kernel_main(void) {
+void kernel_main(uint32_t magic, uint32_t mb_info_ptr) {
     terminal_initialize();
+
+    if (magic != 0x2BADB002) {
+        printk("Bad magic number: %08x\n", magic);
+        // Not booted by Multiboot
+        while (1);
+    }
+    print_multiboot_info((multiboot_info_t *)mb_info_ptr);
 
     init_gdt();
     printf("Loaded GDT\n");
-
 
     printf("Hello, kernel TEST World!\n");
     printf("test\n");
@@ -25,5 +33,5 @@ void kernel_main(void) {
     printf("test %d\n", 1020);
 
     assert(0 == 0);
-    //assert(0 == 1);
+    // assert(0 == 1);
 }
