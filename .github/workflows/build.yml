@@ -1,0 +1,49 @@
+name: AprismaOS Build Matrix
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-matrix:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest, docker]
+    runs-on: ${{ matrix.os == 'docker' && 'ubuntu-latest' || matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up build environment
+        if: matrix.os != 'docker'
+        run: |
+          echo "Installing dependencies for $RUNNER_OS"
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            sudo apt update
+            sudo apt install -y make xorriso qemu i686-elf-binutils i686-elf-gcc grub-pc-bin
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            brew update
+            brew install make xorriso qemu i686-elf-binutils i686-elf-gcc
+          elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            echo "Installing WSL dependencies"
+            wsl sudo apt update
+            wsl sudo apt install -y make xorriso qemu i686-elf-binutils i686-elf-gcc grub-pc-bin
+          fi
+
+      - name: Build AprismaOS
+        if: matrix.os != 'docker'
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            wsl ./aprisma.sh --build iso
+          else
+            ./aprisma.sh --build iso
+          fi
+
+      - name: Build inside Docker
+        if: matrix.os == 'docker'
+        run: |
+          docker pull stre4k/aprismaos-toolchain:latest
+          docker run --rm -v $PWD:/workspace -w /workspace stre4k/aprismaos-toolchain:latest ./aprisma.sh --build iso
+
