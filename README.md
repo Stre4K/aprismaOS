@@ -1,5 +1,7 @@
 # **Welcome to AprismaOS!**
 
+![AprismaOS Logo](docs/aprismaOS.png "AprismaOS Logo")
+
 Welcome to **AprismaOS**, my grand project to build my own operating system, **Aprisma**!
 This project is a **work in progress** and subject to major changes.
 
