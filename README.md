@@ -189,4 +189,12 @@ brew install make xorriso qemu i686-elf-binutils i686-elf-gcc i686-elf-ld i686-e
 
 > **Note for MacOS**: To build the ISO, you need to use the `--homebrew-grub` flag with the `aprisma.sh` command.
 
+## **Building with Docker (Optional)**
 
+To simplify setting up a build environment, AprismaOS provides **Docker images**.
+Docker is **only for building** the project — running QEMU or a graphical OS inside Docker is **not recommended**.
+
+- Precompiled images are available on Docker Hub: `stre4k/aprismaos-toolchain:latest`.
+- You can also build the images locally using the Dockerfiles in the `docker/` directory.
+
+More detailed instructions can be found in the [Docker README](docker/README.md).
