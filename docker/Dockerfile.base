@@ -1,0 +1,74 @@
+# ============================
+# Stage 1: Build cross compilers
+# ============================
+FROM ubuntu:22.04 AS builder
+
+# Install dependencies
+RUN apt update && apt install -y --no-install-recommends \
+    build-essential \
+    bison \
+    flex \
+    libgmp3-dev \
+    libmpfr-dev \
+    libmpc-dev \
+    texinfo \
+    wget \
+    git \
+    make \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create user and workdir
+RUN useradd -m -s /bin/bash aprisma
+WORKDIR /home/aprisma
+
+ENV CROSS_PREFIX=/opt/cross
+ENV PATH="$CROSS_PREFIX/bin:$PATH"
+
+# Build binutils (i686 + x86_64)
+RUN mkdir -p build && cd build && \
+    wget -q https://ftp.gnu.org/gnu/binutils/binutils-2.42.tar.gz && \
+    tar xf binutils-2.42.tar.gz && \
+    for arch in i686 x86_64; do \
+        mkdir binutils-build-$arch && cd binutils-build-$arch && \
+        ../binutils-2.42/configure --target=${arch}-elf --prefix=$CROSS_PREFIX --disable-nls --disable-werror && \
+        make -j$(nproc) && make install && cd ..; \
+    done
+
+# Build GCC (i686 + x86_64)
+RUN cd build && \
+    wget -q https://ftp.gnu.org/gnu/gcc/gcc-13.2.0/gcc-13.2.0.tar.gz && \
+    tar xf gcc-13.2.0.tar.gz && \
+    for arch in i686 x86_64; do \
+        mkdir gcc-build-$arch && cd gcc-build-$arch && \
+        ../gcc-13.2.0/configure --target=${arch}-elf --prefix=$CROSS_PREFIX --disable-nls --enable-languages=c,c++ --without-headers && \
+        make all-gcc -j$(nproc) && make all-target-libgcc -j$(nproc) && \
+        make install-gcc && make install-target-libgcc && cd ..; \
+    done
+
+# ============================
+# Stage 2: Final lightweight image
+# ============================
+FROM ubuntu:22.04
+
+# Install minimal runtime deps
+RUN apt update && apt install -y --no-install-recommends \
+    ca-certificates \
+   && rm -rf /var/lib/apt/lists/*
+
+# Copy toolchain only
+COPY --from=builder /opt/cross /opt/cross
+
+# Environment setup
+ENV PATH="/opt/cross/bin:$PATH" \
+    HOST=x86_64-elf \
+    CC=${HOST}-gcc \
+    AS=${HOST}-as \
+    AR=${HOST}-ar \
+    SYSROOT=/sysroot \
+    CFLAGS="--sysroot=/sysroot -O2 -g -isystem=/usr/include" \
+    CPPFLAGS=""
+
+WORKDIR /workspace
+CMD ["bash"]
+
