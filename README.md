@@ -121,36 +121,72 @@ AprismaOS is a work in progress, with several planned features and enhancements.
 
 ---
 
-## **Building**
+## **Building and Running AprismaOS**
 
-AprismaOS uses shell scripts and Makefiles to build all required files.
+AprismaOS uses the `aprisma.sh` script along with Makefiles to handle building the kernel, creating an ISO, cleaning, and optionally running the system in QEMU.
 
 ### **Disclaimer**
-At the moment, building on different systems and architectures may encounter various issues.
-Resolving these compatibility problems is a priority for future development.
+Building on different systems and architectures may encounter issues. Resolving these compatibility problems is a priority for future development.
 
-### **Build Instructions**
-Run the following command to build the project:
+---
+
+### **Build Commands**
+
+The `--build` option replaces the old `build.sh`:
+
+- **Build the ISO (default)**:
 ```sh
-sh build.sh
+./aprisma.sh --build iso
+```
+**Note**: Not required to add `iso` to the command.
+
+- **Build the Kernel**:
+```sh
+./aprisma.sh --build kernel
 ```
 
-### **Running the Project**
-Run the following command to start the project:
+- **Clean**:
 ```sh
-sh run.sh
+./aprisma.sh --clean
 ```
+
+### **Run Commands**
+You can optionally run the kernel or ISO after building:
+
+Run the ISO directly in QEMU:
+```sh
+./aprisma.sh --run iso
+```
+
+Run the kernel directly in QEMU:
+```sh
+./aprisma.sh --run kernel
+```
+Specify a custom path for kernel or ISO:
+```sh
+./aprisma.sh --run iso --run-path /path/to/aprisma.iso
+./aprisma.sh --run kernel --run-path /path/to/aprisma.kernel
+```
+
+> **Note:** For more help, use the `--help` or `-h` flags with the `aprisma.sh` command.
 
 ## **Dependencies**
 
 To build AprismaOS, you need the following:
 
 - **i686-elf toolchain** – Required for building the kernel.
-- **GRUB** – Required for the `grub-mkrescue` command, along with the necessary runtime files. _(Needed for building the ISO, not available on macOS.)_
+- **GRUB** – Required for the `grub-mkrescue` command, along with the necessary runtime files. _(Needed for building the ISO)_
 - **Xorriso** – The ISO creation engine used by `grub-mkrescue`.
 - **GNU Make** – Version **4.0 or later**.
 - **QEMU** – _(Optional)_ For testing the operating system.
 
 ### **macOS Reccomendation**
 It is recommended to install all dependencies using [**Homebrew**](https://brew.sh/).
+
+```sh
+brew install make xorriso qemu i686-elf-binutils i686-elf-gcc i686-elf-ld i686-elf-grub x86_64-elf-binutils x86_64-elf-gcc
+```
+
+> **Note for MacOS**: To build the ISO, you need to use the `--homebrew-grub` flag with the `aprisma.sh` command.
+
 
