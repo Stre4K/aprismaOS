@@ -1,7 +1,5 @@
-DEFAULT_HOST!=../default-host.sh
-HOST?=DEFAULT_HOST
-#HOSTARCH!=../target-triplet-to-arch.sh $(HOST)
-HOSTARCH=i386
+HOST?=$(DEFAULT_HOST)
+HOSTARCH?=i386
 
 CFLAGS?=-O2 -g
 CPPFLAGS?=
