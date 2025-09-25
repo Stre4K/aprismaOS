@@ -184,7 +184,7 @@ To build AprismaOS, you need the following:
 It is recommended to install all dependencies using [**Homebrew**](https://brew.sh/).
 
 ```sh
-brew install make xorriso qemu i686-elf-binutils i686-elf-gcc i686-elf-ld i686-elf-grub x86_64-elf-binutils x86_64-elf-gcc
+brew install make xorriso qemu i686-elf-binutils i686-elf-gcc i686-elf-grub x86_64-elf-binutils x86_64-elf-gcc
 ```
 
 > **Note for MacOS**: To build the ISO, you need to use the `--homebrew-grub` flag with the `aprisma.sh` command.
