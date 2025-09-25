@@ -15,21 +15,41 @@ architecture (32-bit x86) but focus is on implementing **64-bit mode**.
   - [Beginner-Friendly Goals](#beginner-friendly-goals)
   - [Intermediate Goals](#intermediate-goals)
   - [Advanced Goals](#advanced-goals)
-- [Building](#building)
-  - [Build Instructions](#build-instructions)
-  - [Running the Project](#running-the-project)
+- [Building and Running](#building-and-running-aprismaos)
+  - [Build Commands](#build-commands)
+  - [Run Commands](#run-commands)
 - [Dependencies](#dependencies)
+- [Platforms](#building-with-docker-optional)
+  - [Docker](#building-with-docker-optional)
+  - [macOS](#aprismaos-macos-installation-guide)
+  - [Linux / WSL](#aprismaos-linux--wsl-installation-guide)
 
 
 ---
 
-# **AprismaOS Development Goals**
+<!--
+=========================================================================================================================================================
+=========================================================================================================================================================
+=========================================================================================================================================================
+-->
+
+<!--
+=========================================================================================================================================================
+=========================================================================================================================================================
+=========================================================================================================================================================
+-->
+
+
+<details>
+<summary><h2><b>AprismaOS Development Goals</h2></b></summary>
+
 
 AprismaOS is a work in progress, with several planned features and enhancements. Below is a categorized list of goals for the project.
 
 ---
+<details>
+<summary><h3><b>Current Focus</h3></b></summary>
 
-## **Current Focus**
 - [X] **Basic Output & Debugging**
   - Implement `printf()` for variable printing.
   - Implement an `assert()` function for debugging.
@@ -62,8 +82,18 @@ AprismaOS is a work in progress, with several planned features and enhancements.
   - Implement heap allocation (`malloc()` / `free()` system calls).
 
 ---
+</details>
 
-## **Beginner-Friendly Goals**
+<!--
+=========================================================================================================================================================
+=========================================================================================================================================================
+=========================================================================================================================================================
+-->
+
+
+<details>
+<summary><h3><b>Beginner-Friendly Goals</h3></b></summary>
+
 - [ ] **Shell & User Mode**
   - Implement a basic command-line shell (CLI).
   - Support user-space execution (User Mode).
@@ -76,8 +106,18 @@ AprismaOS is a work in progress, with several planned features and enhancements.
   - Support basic file reading and writing.
 
 ---
+</details>
 
-## **Intermediate Goals**
+<!--
+=========================================================================================================================================================
+=========================================================================================================================================================
+=========================================================================================================================================================
+-->
+
+
+<details>
+<summary><h3><b>Intermediate Goals</h3></b></summary>
+
 - [ ] **Memory & Paging**
   - Implement paging and virtual memory.
   - Introduce memory protection mechanisms.
@@ -98,8 +138,18 @@ AprismaOS is a work in progress, with several planned features and enhancements.
   - Implement a simple graphics mode (beyond text mode).
 
 ---
+</details>
 
-## **Advanced Goals**
+<!--
+=========================================================================================================================================================
+=========================================================================================================================================================
+=========================================================================================================================================================
+-->
+
+
+<details>
+<summary><h3><b>Advanced Goals</h3></b></summary>
+
 - [ ] **System & Libraries**
   - Implement dynamic linking and shared libraries.
   - Introduce a Just-In-Time (JIT) compiler for a toy language.
@@ -120,6 +170,23 @@ AprismaOS is a work in progress, with several planned features and enhancements.
   - Introduce user authentication and permissions.
 
 ---
+</details>
+</details>
+
+
+<!--
+=========================================================================================================================================================
+=========================================================================================================================================================
+=========================================================================================================================================================
+-->
+
+<!--
+=========================================================================================================================================================
+=========================================================================================================================================================
+=========================================================================================================================================================
+-->
+
+
 
 ## **Building and Running AprismaOS**
 
@@ -130,7 +197,15 @@ Building on different systems and architectures may encounter issues. Resolving 
 
 ---
 
-### **Build Commands**
+<!--
+=========================================================================================================================================================
+=========================================================================================================================================================
+=========================================================================================================================================================
+-->
+
+
+<details>
+<summary><h3><b>Build Commands</h3></b></summary>
 
 The `--build` option replaces the old `build.sh`:
 
@@ -149,8 +224,18 @@ The `--build` option replaces the old `build.sh`:
 ```sh
 ./aprisma.sh --clean
 ```
+</details>
 
-### **Run Commands**
+<!--
+=========================================================================================================================================================
+=========================================================================================================================================================
+=========================================================================================================================================================
+-->
+
+
+<details>
+<summary><h3><b>Run Commands</h3></b></summary>
+
 You can optionally run the kernel or ISO after building:
 
 Run the ISO directly in QEMU:
@@ -169,8 +254,19 @@ Specify a custom path for kernel or ISO:
 ```
 
 > **Note:** For more help, use the `--help` or `-h` flags with the `aprisma.sh` command.
+</details>
 
-## **Dependencies**
+
+---
+<!--
+=========================================================================================================================================================
+=========================================================================================================================================================
+=========================================================================================================================================================
+-->
+
+
+<details>
+<summary><h3><b>Dependencies</h3></b></summary>
 
 To build AprismaOS, you need the following:
 
@@ -179,17 +275,19 @@ To build AprismaOS, you need the following:
 - **Xorriso** – The ISO creation engine used by `grub-mkrescue`.
 - **GNU Make** – Version **4.0 or later**.
 - **QEMU** – _(Optional)_ For testing the operating system.
+</details>
 
-### **macOS Reccomendation**
-It is recommended to install all dependencies using [**Homebrew**](https://brew.sh/).
 
-```sh
-brew install make xorriso qemu i686-elf-binutils i686-elf-gcc i686-elf-grub x86_64-elf-binutils x86_64-elf-gcc
-```
+---
+<!--
+=========================================================================================================================================================
+=========================================================================================================================================================
+=========================================================================================================================================================
+-->
 
-> **Note for MacOS**: To build the ISO, you need to use the `--homebrew-grub` flag with the `aprisma.sh` command.
 
-## **Building with Docker (Optional)**
+<details>
+  <summary><h3><b>Building with Docker (Optional)</h3></b></summary>
 
 To simplify setting up a build environment, AprismaOS provides **Docker images**.
 Docker is **only for building** the project — running QEMU or a graphical OS inside Docker is **not recommended**.
@@ -198,3 +296,110 @@ Docker is **only for building** the project — running QEMU or a graphical OS i
 - You can also build the images locally using the Dockerfiles in the `docker/` directory.
 
 More detailed instructions can be found in the [Docker README](docker/README.md).
+</details>
+
+<!--
+=========================================================================================================================================================
+=========================================================================================================================================================
+=========================================================================================================================================================
+-->
+
+
+<details>
+<summary><h3><b>AprismaOS macOS Installation guide</h3></b></summary>
+
+It is recommended to install all dependencies using [**Homebrew**](https://brew.sh/).
+
+```sh
+brew install make xorriso qemu i686-elf-binutils i686-elf-gcc i686-elf-grub x86_64-elf-binutils x86_64-elf-gcc
+```
+
+> **Note for MacOS**: To build the ISO, you need to use the `--homebrew-grub` flag with the `aprisma.sh` command.
+</details>
+
+<!--
+=========================================================================================================================================================
+=========================================================================================================================================================
+=========================================================================================================================================================
+-->
+
+
+<details>
+<summary><h3><b>AprismaOS Linux / WSL Installation Guide</h3></b></summary>
+
+This guide explains how to build **AprismaOS** on Linux or Windows Subsystem for Linux (WSL).
+
+#### Installing Dependencies on Ubuntu / WSL
+
+Update package lists and install essential packages:
+
+```bash
+sudo apt update
+sudo apt install -y build-essential xorriso qemu grub-pc-bin
+```
+
+> **Note:** `i686-elf-gcc` and `i686-elf-binutils` are not always available via standard apt repositories. You can either install via a PPA or prebuilt toolchain, or build a custom cross-compiler.
+
+---
+
+#### Building a Custom i686-elf Cross-Compiler
+
+##### 1. Build Binutils
+
+```bash
+mkdir -p ~/cross && cd ~/cross
+wget https://ftp.gnu.org/gnu/binutils/binutils-2.41.tar.gz
+tar xvf binutils-2.41.tar.gz
+mkdir build-binutils && cd build-binutils
+../binutils-2.41/configure --target=i686-elf --prefix=/usr/local/cross --disable-nls --disable-werror
+make
+sudo make install
+```
+
+##### 2. Build GCC
+
+```bash
+cd ~/cross
+wget https://ftp.gnu.org/gnu/gcc/gcc-13.2.0/gcc-13.2.0.tar.gz
+tar xvf gcc-13.2.0.tar.gz
+mkdir build-gcc && cd build-gcc
+../gcc-13.2.0/configure --target=i686-elf --prefix=/usr/local/cross --enable-languages=c --disable-nls --without-headers
+make all-gcc
+sudo make install-gcc
+```
+
+After this, `i686-elf-gcc` should be available globally.
+
+---
+
+#### Configuring the Toolchain
+
+Ensure the cross-compiler is in your `PATH`:
+
+```bash
+export PATH=/usr/local/cross/bin:$PATH
+```
+
+Verify the installation:
+
+```bash
+i686-elf-gcc --version
+i686-elf-ld --version
+```
+
+---
+
+#### Building AprismaOS
+
+Once the toolchain is installed, you can build AprismaOS:
+
+```bash
+sh aprisma.sh --build iso
+```
+
+#### References
+
+- [OSDev Cross Compiler Guide](https://wiki.osdev.org/GCC_Cross-Compiler)
+
+</details>
+
