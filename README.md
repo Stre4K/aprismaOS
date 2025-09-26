@@ -296,7 +296,7 @@ To build AprismaOS, you need the following:
 To simplify setting up a build environment, AprismaOS provides **Docker images**.
 Docker is **only for building** the project — running QEMU or a graphical OS inside Docker is **not recommended**.
 
-- Precompiled images are available on Docker Hub: `stre4k/aprismaos-toolchain:latest`.
+- Precompiled images are available on Docker Hub: `stre4k/aprisma:latest`.
 - You can also build the images locally using the Dockerfiles in the `docker/` directory.
 
 More detailed instructions can be found in the [Docker README](docker/README.md).
