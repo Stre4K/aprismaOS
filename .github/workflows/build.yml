@@ -31,6 +31,6 @@ jobs:
       - name: Build AprismaOS inside Docker
         if: matrix.os == 'docker'
         run: |
-          docker pull stre4k/aprismaos-toolchain:latest
-          docker run --rm -v $PWD:/workspace -w /workspace stre4k/aprismaos-toolchain:latest sh aprisma.sh --build iso
+          docker pull stre4k/aprisma:latest
+          docker run --rm -v $PWD:/workspace -w /workspace stre4k/aprisma:latest sh aprisma.sh --build iso
 
