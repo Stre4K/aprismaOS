@@ -7,30 +7,195 @@ on:
     branches: [main]
 
 jobs:
-  build-matrix:
-    strategy:
-      matrix:
-        os: [macos-latest, docker]
-    runs-on: ${{ matrix.os == 'docker' && 'ubuntu-latest' || matrix.os }}
-
+  # 1. Build kernel on AMD64 (full build)
+  build-kernel-amd64:
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Set up macOS build environment
-        if: matrix.os == 'macos-latest'
+      - uses: actions/checkout@v4
+      - name: Pull toolchain
+        run: docker pull stre4k/aprisma:latest
+      - name: Build kernel (amd64)
         run: |
-          echo "Installing dependencies for macOS"
+          docker run --rm -v $PWD:/workspace -w /workspace \
+            stre4k/aprisma:latest \
+            sh aprisma.sh --build iso
+
+      - name: Upload kernel artifact (amd64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-amd64
+          path: sysroot/boot/aprisma.kernel
+
+      - name: Upload ISO artifact (amd64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: iso-amd64
+          path: aprisma.iso
+
+        # 2. Build kernel on ARM64 (toolchain-only)
+  build-kernel-arm64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pull toolchain
+        run: docker pull stre4k/aprisma:latest
+      - name: Build kernel (arm64 - toolchain only)
+        run: |
+          docker run --rm -v $PWD:/workspace -w /workspace \
+            stre4k/aprisma:latest \
+            sh aprisma.sh --build kernel
+
+      - name: Upload kernel artifact (arm64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-arm64
+          path: sysroot/boot/aprisma.kernel
+
+  # 3. macOS build (native + ISO)
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies (brew)
+        run: |
           brew update
           brew install make xorriso qemu i686-elf-binutils i686-elf-gcc i686-elf-grub
-
-      - name: Build AprismaOS on macOS
-        if: matrix.os == 'macos-latest'
+      - name: Build kernel + ISO (macOS)
         run: sh aprisma.sh --build iso --homebrew-grub
 
-      - name: Build AprismaOS inside Docker
-        if: matrix.os == 'docker'
+      - name: Upload kernel artifact (macOS)
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-macos
+          path: sysroot/boot/aprisma.kernel
+
+      - name: Upload ISO artifact (macOS)
+        uses: actions/upload-artifact@v4
+        with:
+          name: iso-macos
+          path: aprisma.iso
+
+  # 4. Smoke test: fake ISO creation with grub container (no artifact)
+  iso-test-fake:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run fake ISO build
         run: |
-          docker pull stre4k/aprisma:latest
-          docker run --rm -v $PWD:/workspace -w /workspace stre4k/aprisma:latest sh aprisma.sh --build iso
+          docker pull stre4k/aprisma:grub-22.04
+          docker run --rm -v $PWD:/workspace -w /workspace \
+            stre4k/aprisma:grub-22.04 \
+            sh -c 'mkdir -p isodir/boot/grub && touch isodir/boot/aprisma.kernel && echo -e "menuentry \"Aprisma\" {\n  multiboot /boot/aprisma.kernel\n}" > isodir/boot/grub/grub.cfg && grub-mkrescue -o aprisma.iso isodir'
+
+  # 5. Real ISO build (arm64): uses artifact from build-kernel-arm64
+  build-iso-arm64:
+    runs-on: ubuntu-24.04-arm
+    needs: build-kernel-arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      # Download the ARM64 kernel artifact
+      - name: Download kernel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: kernel-arm64
+          path: sysroot/boot
+
+      # Set up QEMU so ARM can run x86_64 containers
+      - name: Set up QEMU for multi-arch
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/amd64
+
+      # Pull and run the GRUB container under emulation
+      - name: Create real ISO with GRUB container
+        run: |
+          docker pull --platform linux/amd64 stre4k/aprisma:grub-22.04
+          docker run --platform linux/amd64 --rm -v $PWD:/workspace -w /workspace \
+            stre4k/aprisma:grub-22.04 \
+            sh -c 'mkdir -p isodir/boot/grub && cp sysroot/boot/aprisma.kernel isodir/boot/aprisma.kernel && echo -e "menuentry \"Aprisma\" {\n  multiboot /boot/aprisma.kernel\n}" > isodir/boot/grub/grub.cfg && grub-mkrescue -o aprisma.iso isodir'
+
+      # Upload the resulting ISO
+      - name: Upload ISO artifact (arm64 GRUB)
+        uses: actions/upload-artifact@v4
+        with:
+          name: iso-arm64-grub
+          path: aprisma.iso
+
+  # -----------------------------
+  # Artifact Sanity Test Matrix
+  # -----------------------------
+  qemu-boot-test:
+    runs-on: ubuntu-latest
+    needs: [build-kernel-amd64, build-kernel-arm64, build-macos, build-iso-arm64]
+    strategy:
+      matrix:
+        include:
+          - artifact: iso-amd64
+            is_iso: true
+          - artifact: kernel-amd64
+            is_iso: false
+          - artifact: iso-arm64-grub
+            is_iso: true
+          - artifact: kernel-arm64
+            is_iso: false
+          - artifact: iso-macos
+            is_iso: true
+          - artifact: kernel-macos
+            is_iso: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Download artifact
+      - name: Download ${{ matrix.artifact }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+      # Install lightweight inspection tools
+      - name: Install inspection tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            binutils \
+            genisoimage \
+            grub-pc-bin \
+            qemu-utils
+
+      # Inspect the artifact
+      - name: Sanity check ${{ matrix.artifact }}
+        run: |
+          FILE_DIR=${{ matrix.artifact }}
+          if [ "${{ matrix.is_iso }}" = "true" ]; then
+            FILE="$FILE_DIR/aprisma.iso"
+
+            echo "📦 Inspecting ISO: $FILE"
+            file "$FILE" || (echo "❌ ISO file is invalid" && exit 1)
+            isoinfo -i "$FILE" -d || (echo "❌ ISO header invalid" && exit 1)
+            echo "📁 ISO contents:"
+            isoinfo -i "$FILE" -l | head -n 40
+
+          else
+            FILE="$FILE_DIR/aprisma.kernel"
+
+            echo "🧪 Inspecting kernel ELF: $FILE"
+            file "$FILE" || (echo "❌ Kernel file is invalid" && exit 1)
+            readelf -h "$FILE" || (echo "❌ ELF headers invalid" && exit 1)
+
+            echo "🔎 Checking multiboot header..."
+            if grub-file --is-x86-multiboot "$FILE"; then
+              echo "✅ Kernel is multiboot-compatible"
+            else
+              echo "⚠️  Kernel is not multiboot-compatible"
+            fi
+          fi
+
+      # Optional: Quick disk image metadata check (works for both ISO and kernel images)
+      - name: Inspect disk/image metadata
+        run: |
+          FILE=${{ matrix.is_iso && format('{0}/aprisma.iso', matrix.artifact) || format('{0}/aprisma.kernel', matrix.artifact) }}
+          echo "📊 Image metadata:"
+          qemu-img info "$FILE" || echo "⚠️ qemu-img could not read image metadata"
 

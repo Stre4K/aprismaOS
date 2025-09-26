@@ -15,6 +15,7 @@ void kernel_main(uint32_t magic, uint32_t mb_info_ptr) {
         // Not booted by Multiboot
         while (1);
     }
+    printk("Aprisma kernel loaded\n");
     print_multiboot_info((multiboot_info_t *)mb_info_ptr);
 
     init_gdt();
