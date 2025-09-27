@@ -28,6 +28,7 @@ LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
 
 KERNEL_OBJS=\
 $(KERNEL_ARCH_OBJS) \
+kernel/signature.o \
 kernel/kernel.o \
 kernel/printk.o \
 kernel/multiboot.o \
