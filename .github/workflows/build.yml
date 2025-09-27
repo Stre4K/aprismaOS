@@ -101,7 +101,7 @@ jobs:
           name: kernel-arm64
           path: sysroot/boot
 
-      # Set up QEMU so ARM can run x86_64 containers
+       # Set up QEMU so ARM can run x86_64 containers
       - name: Set up QEMU for multi-arch
         uses: docker/setup-qemu-action@v3
         with:
@@ -154,6 +154,17 @@ jobs:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}
 
+      # Set up QEMU so ARM can run x86_64 containers
+      - name: Set up QEMU for multi-arch
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/amd64
+
+      - id: disable-man-pages
+        name: Disable man pages
+        run: sudo rm /var/lib/man-db/auto-update
+        shell: bash
+
       # Install lightweight inspection tools
       - name: Install inspection tools
         run: |
@@ -192,7 +203,37 @@ jobs:
             fi
           fi
 
-      # Optional: Quick disk image metadata check (works for both ISO and kernel images)
+          if [ "${{ matrix.is_iso }}" != "true" ]; then
+            echo "🔍 Checking embedded signature"
+            if strings "$FILE" | grep -q "AprismaKernelSignature_v1"; then
+              echo "✅ Found embedded signature (AprismaKernelSignature_v1)"
+            else
+              echo "❌ Embedded signature missing!"
+              exit 1
+            fi
+
+            echo "🔍 Checking .signature section"
+            if command -v objdump >/dev/null 2>&1; then
+                echo "🔎 Dumping .signature section:"
+                objdump -s -j .signature "$FILE" || true
+                if objdump -s -j .signature "$FILE" 2>/dev/null | grep -a "AprismaSectionV1"; then
+                    echo "✅ Found .signature section with AprismaSectionV1"
+                else
+                    echo "⚠️ .signature section not found in kernel"
+                    exit 1
+                fi
+            else
+                echo "⚠️ objdump not available, trying readelf"
+                if readelf -x .signature "$FILE" 2>/dev/null | grep -a "AprismaSectionV1"; then
+                    echo "✅ Found .signature section via readelf"
+                else
+                    echo "❌ .signature section missing (and objdump not available)"
+                    exit 1
+                fi
+            fi
+          fi
+
+          # Optional: Quick disk image metadata check (works for both ISO and kernel images)
       - name: Inspect disk/image metadata
         run: |
           FILE=${{ matrix.is_iso && format('{0}/aprisma.iso', matrix.artifact) || format('{0}/aprisma.kernel', matrix.artifact) }}
