@@ -58,7 +58,7 @@ GREEN   := \033[0;32m
 CYAN 	:= \033[0;36m
 MAGENTA := \033[0;35m
 BLUE    := \033[0;34m
-YELLOW  := \033[1;33m
+YELLOW  := \033[0;33m
 RESET   := \033[0m
 
 # -------------------------
@@ -106,7 +106,7 @@ install: install-headers install-libs
 #	cp -R -p $(SRC_DIR)/include/. $(SYSROOT)/include/
 install-headers:
 	@if [ ! -d $(SYSROOT)/include ]; then \
-		echo "$(YELLOW)[libc][install] Copying headers$(RESET)"; \
+		echo "$(YELLOW)[libc] Copying headers$(RESET)"; \
 		mkdir -p $(SYSROOT)/include; \
 		cp -R -p $(SRC_DIR)/include/. $(SYSROOT)/include/; \
 	fi

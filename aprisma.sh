@@ -119,6 +119,7 @@ export CPPFLAGS=''
 # ============================
 RED='\033[0;31m'
 GREEN='\033[0;32m'
+GREEN_BOLD='\033[1;32m'
 YELLOW='\033[0;33m'
 NC='\033[0m'
 
@@ -126,15 +127,16 @@ NC='\033[0m'
 # Clean previous build
 # ============================
 if [ "$CLEAN" = "1" ]; then
-    echo "${YELLOW}Cleaning previous build...${NC}"
-    rm -rf build build/AprismaOS build/objects "$ISO_OUTPUT"
-        for PROJECT in $PROJECTS; do
-            (cd "$ROOTDIR/src/$PROJECT" && \
-                ROOTDIR="$ROOTDIR" \
-                SYSROOT="$SYSROOT" \
-                OBJ_DIR="$OBJ_DIR" \
-                $MAKE clean)
-        done
+    echo "${YELLOW}[status] Cleaning previous build${NC}"
+    rm -rf build #build/AprismaOS build/objects "$ISO_OUTPUT"
+    #    for PROJECT in $PROJECTS; do
+    #        (cd "$ROOTDIR/src/$PROJECT" && \
+    #            ROOTDIR="$ROOTDIR" \
+    #            SYSROOT="$SYSROOT" \
+    #            OBJ_DIR="$OBJ_DIR" \
+    #            $MAKE clean)
+    #    done
+    echo "${GREEN_BOLD}[status] Clean complete${NC}"
         exit 0
     fi
 
@@ -162,7 +164,6 @@ if [ -n "$BUILD_TYPE" ]; then
     done
 fi
 
-
 # ============================
 # Create ISO if needed
 # ============================
@@ -179,11 +180,11 @@ menuentry "aprisma" {
 EOF
 
     if [ -n "$GRUBDIR" ]; then
-        "$GRUBDIR/i686-elf-grub-mkrescue" -o "$ISO_OUTPUT" "$ISO_DIR" > /dev/null
+        "$GRUBDIR/i686-elf-grub-mkrescue" -o "$ISO_OUTPUT" "$ISO_DIR" --quiet
     else
-        grub-mkrescue -o "$ISO_OUTPUT" "$ISO_DIR" > /dev/null
+        grub-mkrescue -o "$ISO_OUTPUT" "$ISO_DIR" --quiet
     fi
-    echo "${GREEN}[status] ISO created: $ISO_DIR/aprisma.iso${NC}"
+    echo "${GREEN_BOLD}[status] ISO created: $ISO_DIR/aprisma.iso${NC}"
 fi
 
 # ============================

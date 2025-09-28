@@ -39,6 +39,7 @@ all: $(BIN)
 # Colors
 BLUE  := \033[0;34m
 GREEN := \033[0;32m
+GREEN_BOLD:= \033[1;32m
 YELLOW:= \033[0;33m
 RESET := \033[0m
 
@@ -54,7 +55,7 @@ $(BIN): $(KERNEL_OBJS) $(ARCHDIR)/linker.ld $(LIBC_A)
 		$(LIBC_A) \
 		-lgcc \
 		$(LIBS)
-	@echo "$(GREEN)[kernel] Kernel done compiling!$(RESET)"
+	@echo "$(GREEN_BOLD)[kernel] Kernel done compiling!$(RESET)"
 
 # -------------------------
 # Compile .c files
@@ -91,7 +92,7 @@ install: install-headers install-kernel
 #	@cp -R -p $(SRC_DIR)/include/. $(SYSROOT)/include/
 install-headers:
 	@if [ ! -d $(SYSROOT)/include/kernel ]; then \
-		echo "$(YELLOW)[kernel][install] Copying headers...$(RESET)"; \
+		echo "$(YELLOW)[kernel] Copying headers$(RESET)"; \
 		mkdir -p $(SYSROOT)/include >/dev/null;\
 		cp -R -p $(SRC_DIR)/include/. $(SYSROOT)/include/ >/dev/null; \
 	fi
