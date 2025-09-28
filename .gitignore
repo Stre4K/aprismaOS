@@ -4,3 +4,4 @@ sysroot
 compile_commands.json
 .clangd
 .cache
+build

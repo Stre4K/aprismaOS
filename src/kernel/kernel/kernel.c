@@ -4,8 +4,9 @@
 #include <kernel/multiboot.h>
 #include <kernel/printk.h>
 #include <kernel/tty.h>
-#include <stdio.h>
 #include <string.h>
+#include <stdio.h>
+
 
 void kernel_main(uint32_t magic, uint32_t mb_info_ptr) {
     terminal_initialize();
@@ -15,24 +16,25 @@ void kernel_main(uint32_t magic, uint32_t mb_info_ptr) {
         // Not booted by Multiboot
         while (1);
     }
-    printk("Aprisma kernel loaded\n");
     print_multiboot_info((multiboot_info_t *)mb_info_ptr);
 
     init_gdt();
-    printf("Loaded GDT\n");
+    printk("Loaded GDT\n");
 
-    printf("Hello, kernel TEST World!\n");
-    printf("test\n");
+    printk("Hello, kernel TEST World!\n");
+    printk("test\n");
+
+
     if (EPERM == 1) {
-        printf("EPERM\n");
+        printk("EPERM\n");
     }
     errno = EOVERFLOW;
-    printf("errno: %s\n", strerror(errno));
+    printk("errno: %s\n", strerror(errno));
 
     perror("perror");
 
-    printf("test %d\n", 1020);
+    printk("test %d\n", 1020);
 
     assert(0 == 0);
-    // assert(0 == 1);
+    assert(0 == 1);
 }
