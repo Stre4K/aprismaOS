@@ -1,4 +1,5 @@
 *.iso
+*.kernel
 isodir
 sysroot
 compile_commands.json

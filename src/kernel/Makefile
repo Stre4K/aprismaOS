@@ -99,7 +99,7 @@ install-headers:
 
 install-kernel: $(BIN)
 	@mkdir -p $(SYSROOT)/boot
-	@cp $(BIN) $(SYSROOT)/boot
+	@mv $(BIN) $(SYSROOT)/boot
 
 -include $(KERNEL_OBJS:.o=.d)
 
