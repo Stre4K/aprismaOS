@@ -36,6 +36,7 @@ kernel/multiboot.o \
 OBJS=\
 $(ARCHDIR)/gdt.o \
 $(ARCHDIR)/gdts.o \
+$(ARCHDIR)/tss.o \
 $(ARCHDIR)/crti.o \
 $(ARCHDIR)/crtbegin.o \
 $(KERNEL_OBJS) \
@@ -47,6 +48,7 @@ LINK_LIST=\
 $(LDFLAGS) \
 $(ARCHDIR)/gdt.o \
 $(ARCHDIR)/gdts.o \
+$(ARCHDIR)/tss.o \
 $(ARCHDIR)/crti.o \
 $(ARCHDIR)/crtbegin.o \
 $(KERNEL_OBJS) \
