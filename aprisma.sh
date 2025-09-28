@@ -11,10 +11,10 @@ Usage: $0 [OPTIONS]
 
 Options:
   --compiler COMPILER        Select cross-compiler (i686-elf-gcc or x86_64-elf-gcc, default: i686-elf-gcc)
-  --kernel KERNEL_PATH       Kernel path for ISO (default: sysroot/boot/aprisma.kernel)
+  --kernel KERNEL_PATH       Kernel path for ISO (default: build/AprismaOS/sysroot/boot/aprisma.kernel)
   --output ISO_PATH          Output ISO filename (default: aprisma.iso)
   --homebrew-grub            Use homebrew GRUB instead of system default
-  --clean                    Clean previous build (sysroot, isodir, binaries)
+  --clean                    Clean previous build (build/, sysroot, ISO)
   --build [iso|kernel]       Build ISO (default) or only kernel
   --run [kernel|iso]         Run QEMU after building
   --run-path PATH            Path to kernel or ISO when using --run
@@ -25,10 +25,11 @@ EOF
 # ============================
 # Defaults
 # ============================
-
 COMPILER=i686-elf-gcc
-KERNEL=sysroot/boot/aprisma.kernel
-ISO_OUTPUT=aprisma.iso
+ROOTDIR=$(pwd)                   # top-level project directory
+SYSROOT=$ROOTDIR/build/AprismaOS/sysroot
+OBJ_DIR=$ROOTDIR/build/objects
+ISO_OUTPUT=$ROOTDIR/build/aprisma.iso
 GRUBDIR=
 RUN_MODE=
 RUN_PATH=
@@ -38,12 +39,11 @@ MAKE=${MAKE:-make}
 
 SYSTEM_HEADER_PROJECTS="libc kernel"
 PROJECTS="libc kernel"
-SYSROOT=$(pwd)/sysroot
+KERNEL_PATH="$SYSROOT/boot/aprisma.kernel"
 
 # ============================
 # Show help if no options provided
 # ============================
-
 if [ $# -eq 0 ] && [ -z "$BUILD_TYPE" ] && [ -z "$RUN_MODE" ] && [ "$CLEAN" = "0" ]; then
     echo "No options provided."
     show_help
@@ -53,67 +53,31 @@ fi
 # ============================
 # Parse arguments
 # ============================
-
 while [ $# -gt 0 ]; do
     case "$1" in
         --build)
-            if [ -n "$2" ] && ! echo "$2" | grep -q '^--'; then
-                case "$2" in
-                    iso|kernel)
-                        BUILD_TYPE="$2"
-                        shift 2
-                        ;;
-                    *)
-                        echo "Invalid argument for --build: $2 (expected 'iso' or 'kernel')"
-                        exit 1
-                        ;;
-                esac
-            else
-                BUILD_TYPE="iso"
-                shift
-            fi
+            BUILD_TYPE="${2:-iso}"
+            shift 2
             ;;
         --kernel)
-            if [ -z "$2" ] || echo "$2" | grep -q '^--'; then
-                echo "Error: --kernel requires a value"
-                exit 1
-            fi
-            KERNEL="$2"
+            KERNEL_PATH="$2"
             shift 2
             ;;
         --output)
-            if [ -z "$2" ] || echo "$2" | grep -q '^--'; then
-                echo "Error: --output requires a value"
-                exit 1
-            fi
             ISO_OUTPUT="$2"
             shift 2
             ;;
         --compiler)
-            if [ -z "$2" ] || echo "$2" | grep -q '^--'; then
-                echo "Error: --compiler requires a value"
-                exit 1
-            fi
             COMPILER="$2"
             shift 2
             ;;
         --run)
-            if [ -n "$2" ] && ! echo "$2" | grep -q '^--'; then
-                RUN_MODE="$2"
-                shift 2
-            else
-                echo "Error: --run requires 'kernel' or 'iso'"
-                exit 1
-            fi
+            RUN_MODE="$2"
+            shift 2
             ;;
         --run-path)
-            if [ -n "$2" ] && ! echo "$2" | grep -q '^--'; then
-                RUN_PATH="$2"
-                shift 2
-            else
-                echo "Error: --run-path requires a value"
-                exit 1
-            fi
+            RUN_PATH="$2"
+            shift 2
             ;;
         --homebrew-grub)
             GRUBDIR=/opt/homebrew/Cellar/i686-elf-grub/2.12/bin
@@ -138,14 +102,10 @@ done
 # ============================
 # Environment setup
 # ============================
-
 case "$COMPILER" in
     i686-elf-gcc) HOST=i686-elf ;;
     x86_64-elf-gcc) HOST=x86_64-elf ;;
-    *)
-        echo "Invalid compiler: $COMPILER"
-        exit 1
-        ;;
+    *) echo "Invalid compiler: $COMPILER"; exit 1 ;;
 esac
 
 export CC="${HOST}-gcc"
@@ -153,75 +113,86 @@ export AS="${HOST}-as"
 export AR="${HOST}-ar"
 export CFLAGS='-O2 -g'
 export CPPFLAGS=''
-export PREFIX=/usr
-export EXEC_PREFIX=$PREFIX
-export BOOTDIR=/boot
-export LIBDIR=$EXEC_PREFIX/lib
-export INCLUDEDIR=$PREFIX/include
 
-export CC="$CC --sysroot=$SYSROOT"
-if echo "$HOST" | grep -Eq -- '-elf($|-)'; then
-    export CC="$CC -isystem=$INCLUDEDIR"
-fi
+# ============================
+# Colors
+# ============================
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+NC='\033[0m'
 
 # ============================
 # Clean previous build
 # ============================
-
 if [ "$CLEAN" = "1" ]; then
-    echo "Cleaning previous build..."
-    for PROJECT in $PROJECTS; do
-        (cd "$PROJECT" && $MAKE clean)
-    done
-    rm -rf "$SYSROOT" isodir "$ISO_OUTPUT"
-    exit 0
-fi
+    echo "${YELLOW}Cleaning previous build...${NC}"
+    rm -rf build build/AprismaOS build/objects "$ISO_OUTPUT"
+        for PROJECT in $PROJECTS; do
+            (cd "$ROOTDIR/src/$PROJECT" && \
+                ROOTDIR="$ROOTDIR" \
+                SYSROOT="$SYSROOT" \
+                OBJ_DIR="$OBJ_DIR" \
+                $MAKE clean)
+        done
+        exit 0
+    fi
 
 # ============================
 # Build
 # ============================
-
 if [ -n "$BUILD_TYPE" ]; then
-    echo "Installing headers..."
+    echo "${GREEN}[status] Installing headers${NC}"
     mkdir -p "$SYSROOT"
     for PROJECT in $SYSTEM_HEADER_PROJECTS; do
-        (cd "$PROJECT" && DESTDIR="$SYSROOT" $MAKE install-headers)
+    (cd "$ROOTDIR/src/$PROJECT" && \
+        ROOTDIR="$ROOTDIR" \
+        SYSROOT="$SYSROOT" \
+        OBJ_DIR="$OBJ_DIR" \
+        $MAKE install-headers)
     done
 
-    echo "Building projects..."
+    echo "${GREEN}[status] Building projects${NC}"
     for PROJECT in $PROJECTS; do
-        (cd "$PROJECT" && DESTDIR="$SYSROOT" $MAKE install)
+    (cd "$ROOTDIR/src/$PROJECT" && \
+        ROOTDIR="$ROOTDIR" \
+        SYSROOT="$SYSROOT" \
+        OBJ_DIR="$OBJ_DIR" \
+        $MAKE install)
     done
 fi
 
-# Only create ISO if BUILD_TYPE=iso
-if [ "$BUILD_TYPE" = "iso" ]; then
-    echo "Creating ISO..."
-    mkdir -p isodir/boot/grub
-    cp "$KERNEL" isodir/boot/aprisma.kernel
 
-    cat > isodir/boot/grub/grub.cfg << EOF
+# ============================
+# Create ISO if needed
+# ============================
+if [ "$BUILD_TYPE" = "iso" ]; then
+    echo "${YELLOW}[status] Creating ISO${NC}"
+    ISO_DIR=build/isodir
+    mkdir -p "$ISO_DIR/boot/grub"
+    cp "$KERNEL_PATH" "$ISO_DIR/boot/aprisma.kernel"
+
+    cat > "$ISO_DIR/boot/grub/grub.cfg" << EOF
 menuentry "aprisma" {
     multiboot /boot/aprisma.kernel root=/dev/null
 }
 EOF
 
     if [ -n "$GRUBDIR" ]; then
-        "$GRUBDIR/i686-elf-grub-mkrescue" -o "$ISO_OUTPUT" isodir
+        "$GRUBDIR/i686-elf-grub-mkrescue" -o "$ISO_OUTPUT" "$ISO_DIR" > /dev/null
     else
-        grub-mkrescue -o "$ISO_OUTPUT" isodir
+        grub-mkrescue -o "$ISO_OUTPUT" "$ISO_DIR" > /dev/null
     fi
-    echo "ISO created: $ISO_OUTPUT"
+    echo "${GREEN}[status] ISO created: $ISO_DIR/aprisma.iso${NC}"
 fi
 
 # ============================
 # Optionally run QEMU
 # ============================
-
 if [ -n "$RUN_MODE" ]; then
     case "$RUN_MODE" in
         kernel)
-            RUN_KERNEL=${RUN_PATH:-"$KERNEL"}
+            RUN_KERNEL=${RUN_PATH:-"$KERNEL_PATH"}
             echo "Running kernel in QEMU: $RUN_KERNEL"
             qemu-system-i386 -kernel "$RUN_KERNEL" -monitor stdio
             ;;

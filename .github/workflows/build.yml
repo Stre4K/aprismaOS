@@ -24,13 +24,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kernel-amd64
-          path: sysroot/boot/aprisma.kernel
+          path: build/AprismaOS/sysroot/boot/aprisma.kernel
 
       - name: Upload ISO artifact (amd64)
         uses: actions/upload-artifact@v4
         with:
           name: iso-amd64
-          path: aprisma.iso
+          path: build/aprisma.iso
 
         # 2. Build kernel on ARM64 (toolchain-only)
   build-kernel-arm64:
@@ -49,7 +49,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kernel-arm64
-          path: sysroot/boot/aprisma.kernel
+          path: build/AprismaOS/sysroot/boot/aprisma.kernel
 
   # 3. macOS build (native + ISO)
   build-macos:
@@ -67,13 +67,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kernel-macos
-          path: sysroot/boot/aprisma.kernel
+          path: build/AprismaOS/sysroot/boot/aprisma.kernel
 
       - name: Upload ISO artifact (macOS)
         uses: actions/upload-artifact@v4
         with:
           name: iso-macos
-          path: aprisma.iso
+          path: build/aprisma.iso
 
   # 4. Smoke test: fake ISO creation with grub container (no artifact)
   iso-test-fake:
@@ -85,7 +85,7 @@ jobs:
           docker pull stre4k/aprisma:grub-22.04
           docker run --rm -v $PWD:/workspace -w /workspace \
             stre4k/aprisma:grub-22.04 \
-            sh -c 'mkdir -p isodir/boot/grub && touch isodir/boot/aprisma.kernel && echo -e "menuentry \"Aprisma\" {\n  multiboot /boot/aprisma.kernel\n}" > isodir/boot/grub/grub.cfg && grub-mkrescue -o aprisma.iso isodir'
+            sh -c 'mkdir -p build/isodir/boot/grub && touch build/isodir/boot/aprisma.kernel && echo -e "menuentry \"Aprisma\" {\n  multiboot /boot/aprisma.kernel\n}" > build/isodir/boot/grub/grub.cfg && grub-mkrescue -o build/aprisma.iso build/isodir'
 
   # 5. Real ISO build (arm64): uses artifact from build-kernel-arm64
   build-iso-arm64:
@@ -99,7 +99,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: kernel-arm64
-          path: sysroot/boot
+          path: build/AprismaOS/sysroot/boot
 
        # Set up QEMU so ARM can run x86_64 containers
       - name: Set up QEMU for multi-arch
@@ -113,14 +113,14 @@ jobs:
           docker pull --platform linux/amd64 stre4k/aprisma:grub-22.04
           docker run --platform linux/amd64 --rm -v $PWD:/workspace -w /workspace \
             stre4k/aprisma:grub-22.04 \
-            sh -c 'mkdir -p isodir/boot/grub && cp sysroot/boot/aprisma.kernel isodir/boot/aprisma.kernel && echo -e "menuentry \"Aprisma\" {\n  multiboot /boot/aprisma.kernel\n}" > isodir/boot/grub/grub.cfg && grub-mkrescue -o aprisma.iso isodir'
+            sh -c 'mkdir -p build/isodir/boot/grub && cp build/AprismaOS/sysroot/boot/aprisma.kernel build/isodir/boot/aprisma.kernel && echo -e "menuentry \"Aprisma\" {\n  multiboot /boot/aprisma.kernel\n}" > build/isodir/boot/grub/grub.cfg && grub-mkrescue -o build/aprisma.iso build/isodir'
 
       # Upload the resulting ISO
       - name: Upload ISO artifact (arm64 GRUB)
         uses: actions/upload-artifact@v4
         with:
           name: iso-arm64-grub
-          path: aprisma.iso
+          path: build/aprisma.iso
 
   # -----------------------------
   # Artifact Sanity Test Matrix
