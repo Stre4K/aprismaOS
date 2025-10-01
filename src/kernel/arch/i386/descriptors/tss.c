@@ -1,5 +1,5 @@
-#include <kernel/tss.h>
-#include <kernel/gdt.h>
+#include <kernel/arch/tss.h>
+#include <kernel/arch/gdt.h>
 
 struct tss_entry_struct tss_entry;
 

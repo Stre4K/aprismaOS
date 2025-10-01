@@ -1,4 +1,4 @@
-#include <kernel/tty.h>
+#include <kernel/drivers/tty.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>

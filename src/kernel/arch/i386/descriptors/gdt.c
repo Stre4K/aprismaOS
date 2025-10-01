@@ -1,7 +1,7 @@
 // Used for creating GDT segment descriptors in 64-bit integer form.
 
-#include <kernel/gdt.h>
-#include <kernel/tss.h>
+#include <kernel/arch/gdt.h>
+#include <kernel/arch/tss.h>
 #include <kernel/printk.h>
 #include <stdint.h>
 

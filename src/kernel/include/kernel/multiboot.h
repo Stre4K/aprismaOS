@@ -1,5 +1,5 @@
-#ifndef MULTIBOOT_H
-#define MULTIBOOT_H
+#ifndef _KERNEL_MULTIBOOT_H
+#define _KERNEL_MULTIBOOT_H
 
 #include <stdint.h>
 
