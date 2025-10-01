@@ -1,4 +1,6 @@
 #include <kernel/arch/isr.h>
+#include <kernel/arch/lapic.h>
+#include <kernel/arch/timer.h>
 #include <kernel/printk.h>
 #include <stdint.h>
 
@@ -19,21 +21,31 @@ void unregister_irq_handler(int irq) {
 void isr_common_handler(void* regs) {
     regs_t* r = (regs_t*)regs;
     uint8_t int_no = r->int_no;
-    printk("[ISR] int_no=%d eax=%x ebx=%x\n", int_no, r->eax, r->ebx);
+
+    if (int_no == 32) {
+        printk("[ISR] Timer interrupt\n");
+        lapic_eoi();
+        return;
+    }
 
     if (int_no >= 32 && int_no < 48) {
         int irq = int_no - 32;
         if (irq < MAX_IRQS && irq_handlers[irq]) {
+            // call the registered handler; handler MUST call lapic_eoi()/pic_send_eoi()
             irq_handlers[irq](regs);
+            return;
         } else {
             // spurious: just send EOI if necessary in irq handler region (we do that in PIC code)
+            // no handler registered -> send EOI to avoid blocking further interrupts
+            lapic_eoi();
+            return;
         }
-    } else {
-        printk("Unhandled interrupt: %d\n", int_no);
-        // Optionally halt or try to continue
-        for(;;)
-            asm volatile("hlt");
     }
+
+    printk("Unhandled interrupt: %d\n", int_no);
+    // Optionally halt or try to continue
+    for(;;)
+        asm volatile("hlt");
 }
 
 void enable_interrupts(void) {
