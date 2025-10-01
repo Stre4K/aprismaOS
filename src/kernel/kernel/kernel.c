@@ -2,9 +2,9 @@
 #include <kernel/arch/gdt.h>
 #include <kernel/arch/idt.h>
 #include <kernel/arch/isr.h>
+#include <kernel/arch/cpuid.h>
 #include <kernel/drivers/tty.h>
 #include <kernel/printk.h>
-
 void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     terminal_initialize();
 
@@ -13,8 +13,10 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
         // Not booted by Multiboot
         while (1);
     }
-    print_multiboot_info((multiboot_info_t *)mb_info_ptr);
-
+    if (mb_info_ptr == NULL) {
+        // No Multiboot info
+    }
+    //print_multiboot_info((multiboot_info_t *)mb_info_ptr);
     init_gdt();
     printk("[GDT] Loaded\n");
 
@@ -23,6 +25,8 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
 
     enable_interrupts();
 
-    asm volatile("int $0x1F");
-    while (1);
+    if (cpuid_supported_check()) {
+        cpuid_init();
+        printk("[CPUID] Loaded\n");
+    }
 }
