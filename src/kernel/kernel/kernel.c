@@ -1,14 +1,9 @@
-#include <assert.h>
-#include <errno.h>
-#include <kernel/gdt.h>
 #include <kernel/multiboot.h>
+#include <kernel/arch/gdt.h>
+#include <kernel/drivers/tty.h>
 #include <kernel/printk.h>
-#include <kernel/tty.h>
-#include <string.h>
-#include <stdio.h>
 
-
-void kernel_main(uint32_t magic, uint32_t mb_info_ptr) {
+void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     terminal_initialize();
 
     if (magic != 0x2BADB002) {
@@ -20,21 +15,4 @@ void kernel_main(uint32_t magic, uint32_t mb_info_ptr) {
 
     init_gdt();
     printk("Loaded GDT\n");
-
-    printk("Hello, kernel TEST World!\n");
-    printk("test\n");
-
-
-    if (EPERM == 1) {
-        printk("EPERM\n");
-    }
-    errno = EOVERFLOW;
-    printk("errno: %s\n", strerror(errno));
-
-    perror("perror");
-
-    printk("test %d\n", 1020);
-
-    assert(0 == 0);
-    assert(0 == 1);
 }
