@@ -1,7 +1,7 @@
 // qsort.c
 // Quicksort implementation
 // <stdlib.h>
-// Author: Stre4K 
+// Author: Stre4K
 // Date: 2025-02-22
 
 #include <stdlib.h>
@@ -17,7 +17,7 @@ void qsort(void *ptr, size_t count, size_t size, int (*comp)(const void *, const
     if (ptr == NULL || count <= 1) {
         return;
     }
-    if (count <= INSERTION_SORT_THRESHOLD) {
+    if (count <= (size_t)INSERTION_SORT_THRESHOLD) {
         insertion_sort(ptr, count, size, comp);
     } else {
         int pivot_index = partition(ptr, count, size, comp);
@@ -50,7 +50,7 @@ void swap(void *a, void *b, size_t size) {
     memcpy(buffer, a, size);
     memcpy(a, b, size);
     memcpy(b, buffer, size);
-       
+
 }
 
 
