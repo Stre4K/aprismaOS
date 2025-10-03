@@ -47,6 +47,10 @@ void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags) {
 }
 */
 
+/* ======================
+ * Initialize IDT
+ * ====================== */
+
 void init_idt(void) {
     idt_ptr.limit = sizeof(idt_entry_t) * IDT_ENTRIES - 1;
     idt_ptr.base  = (uintptr_t)&idt;
@@ -60,7 +64,12 @@ void init_idt(void) {
     for (uint8_t vector = 0; vector < IDT_CURRENT_INTERRUPTS; ++vector) {
         set_idt_gate(vector, (uintptr_t)isr_stub_table[vector], SEL(GDT_KERNEL_CODE), IDT_KERNEL_INT_GATE);
     }
-    // load the idt
+
+    // Set IDT entries - trap gates
+    set_idt_gate(3, (uintptr_t)isr_stub_table[3],  SEL(GDT_KERNEL_CODE), IDT_KERNEL_TRAP_GATE); //TRAP
+    set_idt_gate(4, (uintptr_t)isr_stub_table[4],  SEL(GDT_KERNEL_CODE), IDT_KERNEL_TRAP_GATE); //TRAP
+    //
+       // load the idt
     idt_load(&idt_ptr);
 }
 
