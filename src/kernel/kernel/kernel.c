@@ -6,6 +6,7 @@
 #include <kernel/arch/lapic.h>
 #include <kernel/arch/pic.h>
 #include <kernel/arch/portio.h>
+#include <kernel/drivers/keyboard.h>
 #include <kernel/arch/timer.h>
 #include <kernel/drivers/tty.h>
 #include <kernel/printk.h>
@@ -33,12 +34,14 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
         printk("[CPUID] Loaded\n");
     }
 
-    //pic_init();
+    pic_init();
     //pit_init();
+    keyboard_init();
 
-    lapic_init();
-
-    lapic_timer_init(1, 32);
+    // Currently unused
+    //lapic_init();
+    //lapic_timer_init(1, 32);
+    //lapic_keyboard_init();
 
     enable_interrupts();
 
