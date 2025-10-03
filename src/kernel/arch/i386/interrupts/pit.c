@@ -13,8 +13,8 @@
 
 #define PIT_MASK 0xFF
 #define PIT_SCALE 1193182
-#define PIT_SET 0x34
-#define PIT_SET_OLD 0x36
+#define PIT_SET_RATE_GEN 0x34
+#define PIT_SET_SQUARE_WAVE 0x36
 
 
 #define PIT_IRQ 0
@@ -55,7 +55,7 @@ void pit_set_frequency(uint32_t hz) {
         return;
     }
     uint16_t divisor = PIT_SCALE / hz;
-    outb(PIT_CONTROL, PIT_SET);             // channel 0, lobyte/hibyte, mode 3
+    outb(PIT_CONTROL, PIT_SET_RATE_GEN);             // channel 0, lobyte/hibyte, mode 2
     outb(PIT_CH0, divisor & PIT_MASK);   // low byte
     outb(PIT_CH0, (divisor >> 8) & PIT_MASK); // high byte
 }
@@ -65,23 +65,70 @@ void pit_set_frequency(uint32_t hz) {
     * PIT interrupt handler
  * ======================================== */
 
+volatile uint64_t pit_ticks = 0;
+volatile uint64_t pit_timer = 0;
 void pit_interrupt_handler(regs_t* regs) {
     (void)regs;
+    pit_ticks++;
+    if (pit_ticks % 100 == 0) {
+       pit_timer++;
+       printk("PIT timer: %lld\n", pit_timer);
+    }
     pic_send_eoi(PIT_IRQ);
-    printk("PIT interrupt HANDLER\n");
 }
 
 /* ========================================
     * PIT initialization
  * ======================================== */
 
+
 void pit_init(void) {
     // enable PIT
     register_irq_handler(PIT_IRQ, pit_interrupt_handler);
 
+    // set frequency
+    pit_set_frequency(100); // 100 Hz
+
     // Clear mask for irq0 on PIC
     pic_clear_mask_irq(PIT_IRQ);
-
-    // set frequency
-    pit_set_frequency(19);
 }
+
+
+/* ========================================
+ * PIT calibration function - used for lapic
+ * ======================================== */
+
+volatile uint32_t count = 0;
+void __pit_calibration_handler(regs_t* regs) {
+    (void)regs;
+    count++;
+    pic_send_eoi(PIT_IRQ);
+}
+
+/*
+    * @desc: Wait for N PIT ticks
+    * @param: ticks - number of PIT ticks to wait for (1 tick = 10ms)
+    * @return: void
+*/
+void pit_calibration_wait(uint32_t ticks) {
+    disable_interrupts();
+
+    pic_remap(0x20, 0x28);
+
+    register_irq_handler(PIT_IRQ, __pit_calibration_handler);
+    pic_clear_mask_irq(PIT_IRQ);
+    pit_set_frequency(100); // 100Hz = 10ms per tick
+
+    enable_interrupts();
+
+    // wait for N PIT ticks
+    while (count < ticks) {
+        asm volatile("hlt");
+    }
+
+    disable_interrupts();
+
+    unregister_irq_handler(PIT_IRQ);
+    pic_set_mask_irq(PIT_IRQ);
+}
+
