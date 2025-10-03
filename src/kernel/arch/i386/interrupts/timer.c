@@ -15,8 +15,8 @@ void lapic_timer_init(uint32_t initial_count, uint32_t vector) {
 }
 
 
-void timer_interrupt_handler(void* ctx) {
-    (void)ctx;
+void timer_interrupt_handler(regs_t* regs) {
+    (void)regs;
     printk("Timer tick\n");
     lapic_eoi(); // signal end of interrupt
 }
