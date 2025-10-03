@@ -1,14 +1,12 @@
 #include <kernel/drivers/tty.h>
+#include <kernel/arch/portio.h>
+#include <kernel/printk.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
 #include "vga.h"
-
-static const size_t VGA_WIDTH = 80;
-static const size_t VGA_HEIGHT = 25;
-static uint16_t *const VGA_MEMORY = (uint16_t *)0xB8000;
 
 static size_t terminal_row;
 static size_t terminal_column;
@@ -53,6 +51,7 @@ void terminal_putchar(char c) {
             }
         }
     }
+    vga_update_cursor(terminal_row, terminal_column); //
 }
 
 void terminal_write(const char *data, size_t size) {
@@ -88,3 +87,64 @@ void terminal_scroll(void) {
     // Keep cursor on the last row
     terminal_row = VGA_HEIGHT - 1;
 }
+
+
+void vga_update_cursor(size_t row, size_t col) {
+    uint16_t pos = row * VGA_WIDTH + col;
+    outb(0x3D4, 0x0F);
+    outb(0x3D5, (uint8_t)(pos & 0xFF));
+    outb(0x3D4, 0x0E);
+    outb(0x3D5, (uint8_t)((pos >> 8) & 0xFF));
+}
+
+void tty_move_cursor(int dx, int dy) {
+    int new_x = (int)terminal_column + dx;
+    int new_y = (int)terminal_row + dy;
+
+    if (new_x < 0) new_x = 0;
+    if (new_x >= (int)VGA_WIDTH) new_x = VGA_WIDTH - 1;
+    if (new_y < 0) new_y = 0;
+    if (new_y >= (int)VGA_HEIGHT) new_y = VGA_HEIGHT - 1;
+
+    terminal_column = (size_t)new_x;
+    terminal_row = (size_t)new_y;
+
+    vga_update_cursor(terminal_row, terminal_column);
+}
+
+void tty_set_cursor(size_t col, size_t row) {
+    if (col >= VGA_WIDTH) col = VGA_WIDTH - 1;
+    if (row >= VGA_HEIGHT) row = VGA_HEIGHT - 1;
+
+    terminal_column = col;
+    terminal_row = row;
+
+    vga_update_cursor(terminal_row, terminal_column);
+}
+
+void tty_backspace(void) {
+    if (terminal_column > 0) {
+        terminal_column--;
+    } else if (terminal_row > 0) {
+        terminal_row--;
+        terminal_column = VGA_WIDTH - 1;
+    } else {
+        return; // Top-left — nothing to delete
+    }
+
+    terminal_putentryat(' ', terminal_color, terminal_column, terminal_row);
+    vga_update_cursor(terminal_row, terminal_column);
+}
+
+size_t tty_get_row(void) {
+    return terminal_row;
+}
+
+size_t tty_get_column(void) {
+    return terminal_column;
+}
+
+uint8_t tty_get_color(void) {
+    return terminal_color;
+}
+
