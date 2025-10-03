@@ -33,8 +33,12 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
         printk("[CPUID] Loaded\n");
     }
 
-    pic_init();
-    pit_init();
+    //pic_init();
+    //pit_init();
+
+    lapic_init();
+
+    lapic_timer_init(1, 32);
 
     enable_interrupts();
 

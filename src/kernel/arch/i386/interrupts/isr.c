@@ -31,7 +31,7 @@ void unregister_irq_handler(int irq) {
 void isr_common_handler(void* regs) {
     regs_t* r = (regs_t*)regs;
     uint8_t int_no = r->int_no;
-    printk("[ISR] int_no: %d\n", int_no);
+    //printk("[ISR] int_no: %d\n", int_no);
 
     if (int_no >= 32 && int_no < 48) {
         int irq = int_no - 32;
