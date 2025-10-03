@@ -58,7 +58,7 @@ AprismaOS is a work in progress, with several planned features and enhancements.
   - Implement `printf()` for variable printing.
   - Implement an `assert()` function for debugging.
 
-- [ ] **Better Platform Compatibility**
+- [X] **Better Platform Compatibility**
   - Improve support for building on different systems and architectures.
   - Resolve cross-platform build issues to ensure smoother development.
   - Improve build procces for implmententation files in libc.
@@ -66,7 +66,7 @@ AprismaOS is a work in progress, with several planned features and enhancements.
 - [X] **32-bit Protected mode**
     - Implement a 32-bit Global Descriptor Table (GDT).
 
-- [ ] **32-bit Protected mode**
+- [X] **32-bit Protected mode**
     - Implement a Task State Segment (TSS).
 
 - [ ] **Architecture Support**
