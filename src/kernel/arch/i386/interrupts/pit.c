@@ -46,6 +46,10 @@ Bits         Usage
 
 */
 
+/* ========================================
+    * PIT set frequency
+ * ======================================== */
+
 void pit_set_frequency(uint32_t hz) {
     if (hz == 0) {
         return;
@@ -56,11 +60,20 @@ void pit_set_frequency(uint32_t hz) {
     outb(PIT_CH0, (divisor >> 8) & PIT_MASK); // high byte
 }
 
+
+/* ========================================
+    * PIT interrupt handler
+ * ======================================== */
+
 void pit_interrupt_handler(regs_t* regs) {
     (void)regs;
     pic_send_eoi(PIT_IRQ);
     printk("PIT interrupt HANDLER\n");
 }
+
+/* ========================================
+    * PIT initialization
+ * ======================================== */
 
 void pit_init(void) {
     // enable PIT

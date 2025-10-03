@@ -47,13 +47,11 @@
 #define PIC_WAIT() \
     do { asm volatile("outb %%al, $0x80" : : "a"(0)); } while (0)
 
+/* ========================================================================== */
 
-void pic_disable(void) {
-    // mask all interrupts from PIC1 and PIC2
-    outb(PIC1_DATA, 0xFF);
-    outb(PIC2_DATA, 0xFF);
-}
 
+
+// Send EOI to the specified IRQ
 void pic_send_eoi(uint8_t irq) {
     if (irq >= 8) {
         outb(PIC2_COMMAND, PIC_EOI);
@@ -87,6 +85,17 @@ void pic_remap(int offset1, int offset2) {
     outb(PIC2_DATA, a2);
 }
 
+
+/* ==========================================
+ * PIC masking functions
+ * ========================================== */
+
+void pic_disable(void) {
+    // mask all interrupts from PIC1 and PIC2
+    outb(PIC1_DATA, 0xFF);
+    outb(PIC2_DATA, 0xFF);
+}
+
 void pic_set_mask_irq(uint8_t irq) {
     uint16_t port;
     uint8_t value;
@@ -117,6 +126,11 @@ void pic_clear_mask_irq(uint8_t irq) {
     outb(port, value);
 }
 
+
+/* ==========================================
+ * PIC irr and isr functions
+ * ========================================== */
+
 /* Helper func */
 static uint16_t __pic_get_irq_reg(int ocw3)
 {
@@ -140,6 +154,10 @@ uint16_t pic_get_isr(void)
 }
 
 
+/* ==========================================
+ * PIC initialization
+ * ========================================== */
+
 /*
     * @brief Initialize the PICs, set up remap and mask all IRQs
     * @param void
@@ -149,8 +167,5 @@ void pic_init(void) {
     pic_remap(PIC1_OFFSET, PIC2_OFFSET);
 
     // MASK ALL IRQs
-    outb(PIC1_DATA, 0xFF);
-    outb(PIC2_DATA, 0xFF);
-
-    printk("PIC masks: master=%02x slave=%02x\n", inb(PIC1_DATA), inb(PIC2_DATA));
+    pic_disable();
 }
