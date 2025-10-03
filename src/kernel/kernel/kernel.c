@@ -5,6 +5,7 @@
 #include <kernel/arch/cpuid.h>
 #include <kernel/arch/lapic.h>
 #include <kernel/arch/pic.h>
+#include <kernel/arch/portio.h>
 #include <kernel/arch/timer.h>
 #include <kernel/drivers/tty.h>
 #include <kernel/printk.h>
@@ -31,11 +32,13 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
         cpuid_init();
         printk("[CPUID] Loaded\n");
     }
-    lapic_init();
-    lapic_timer_init(1000, 32);
+
+    pic_init();
+    pit_init();
 
     enable_interrupts();
 
-    //asm volatile("int $32");
-
+    while(1) {
+        continue;
+    }
 }
