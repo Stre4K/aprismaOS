@@ -47,6 +47,10 @@ void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags) {
 }
 */
 
+/* ======================
+ * Initialize IDT
+ * ====================== */
+
 void init_idt(void) {
     idt_ptr.limit = sizeof(idt_entry_t) * IDT_ENTRIES - 1;
     idt_ptr.base  = (uintptr_t)&idt;

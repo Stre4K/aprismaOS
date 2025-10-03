@@ -5,7 +5,10 @@
 #include <kernel/printk.h>
 #include <stdint.h>
 
-/* simple IRQ handler registration */
+/* ========================================================
+ * simple IRQ handler registration
+ * ======================================================== */
+
 #define MAX_IRQS 16
 static void (*irq_handlers[MAX_IRQS])(regs_t* regs);
 
@@ -17,6 +20,12 @@ void unregister_irq_handler(int irq) {
     if (irq < 0 || irq >= MAX_IRQS) return;
     irq_handlers[irq] = 0;
 }
+
+
+
+/* ========================================================
+ * Interrupt common handler - called from assembly isr_asm.S
+ * ======================================================== */
 
 /* Called from assembly stubs */
 void isr_common_handler(void* regs) {
@@ -43,6 +52,12 @@ void isr_common_handler(void* regs) {
     for(;;)
         asm volatile("hlt");
 }
+
+
+
+/* ========================================================
+    * Interrupt enable/disable
+* ======================================================== */
 
 void enable_interrupts(void) {
     asm volatile("sti");
