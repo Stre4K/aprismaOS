@@ -78,10 +78,10 @@ isr##n:                         \
     pushl $n;                   /* int_no */ \
     pusha;                    /* save registers */ \
     call isr_common_entry;      \
+    popa;                     /* restore registers */ \
     addl $8, %esp;              /* cleanup int_no + error code */ \
-    popa;                     /* restore registers */
     sti;                      \
-    iret
+    iret;                     \
 
 /* ISR stub with CPU-provided error code, minimal */
 #define ISR_ERR(n)               \
@@ -91,10 +91,10 @@ isr##n:                         \
     pushl $n;                   /* int_no */ \
     pusha;                    /* save registers */ \
     call isr_common_entry;      \
-    addl $4, %esp;              /* cleanup int_no */ \
     popa;                     /* restore registers */ \
+    addl $4, %esp;              /* cleanup int_no */ \
     sti;                      \
-    iret
+    iret;                     \
 
 /* Create all exception stubs 0..31 */
 ISR_NOERR(0)
