@@ -16,6 +16,7 @@ Options:
   --homebrew-grub            Use homebrew GRUB instead of system default
   --clean                    Clean previous build (build/, sysroot, ISO)
   --build [iso|kernel]       Build ISO (default) or only kernel
+  --gen-compile-db           Generate compile_commands.json
   --run [kernel|iso]         Run QEMU after building
   --run-path PATH            Path to kernel or ISO when using --run
   -h, --help                 Show this help message
@@ -87,6 +88,10 @@ while [ $# -gt 0 ]; do
             CLEAN=1
             shift
             ;;
+        --gen-compile-db)
+            GEN_COMPILE_DB=1
+            shift
+            ;;
         -h|--help)
             show_help
             exit 0
@@ -114,9 +119,13 @@ export AR="${HOST}-ar"
 export CFLAGS='-O2 -g'
 export CPPFLAGS=''
 
+
 # ============================
 # Colors
 # ============================
+CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
+BLUE='\033[0;34m'
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 GREEN_BOLD='\033[1;32m'
@@ -209,3 +218,78 @@ if [ -n "$RUN_MODE" ]; then
     esac
 fi
 
+
+# ============================
+# Generate compile_commands.json
+# ============================
+if [ "$GEN_COMPILE_DB" = "1" ]; then
+    # ============================
+    # Manual compile_commands.json generator for AprismaOS
+    # ============================
+
+    ROOTDIR=$(pwd)
+    OBJ_DIR="$ROOTDIR/build/objects"
+    SYSROOT="$ROOTDIR/build/AprismaOS/sysroot"
+    CC="i686-elf-gcc"
+
+    # Common flags
+    CFLAGS="-O2 -g -ffreestanding -Wall -Wextra -nostdlib -nostdinc -Werror"
+    KERNEL_CPPFLAGS="-D__is_kernel -Isrc/kernel/include -I$SYSROOT/include"
+    LIBC_CPPFLAGS="-D__is_libc -Isrc/libc/include -I$SYSROOT/include"
+
+    OUT_JSON="$ROOTDIR/compile_commands.json"
+
+    # Clean previous
+    rm -f "$OUT_JSON"
+    mkdir -p "$OBJ_DIR/kernel" "$OBJ_DIR/libc"
+
+    echo "[" > "$OUT_JSON"
+    first=1
+
+    add_entry() {
+        local file="$1"
+        local dir="$2"
+        local cmd="$3"
+
+        [ $first -eq 1 ] || echo "," >> "$OUT_JSON"
+        first=0
+        jq -n --arg d "$dir" --arg c "$cmd" --arg f "$file" '{directory:$d,command:$c,file:$f}' >> "$OUT_JSON"
+    }
+
+    # -------------------------
+    # Kernel entries
+    # -------------------------
+    echo "${BLUE}[Kernel] Generating compile_commands.json${NC}"
+    KERNEL_SRCS=$(find src/kernel/kernel src/kernel/arch/i386 -type f \( -name '*.c' -o -name '*.S' \))
+    for f in $KERNEL_SRCS; do
+        rel="${f#src/kernel/}"
+        obj="$OBJ_DIR/kernel/${rel%.c}.o"
+        obj="$OBJ_DIR/kernel/${rel%.S}.o"
+        mkdir -p "$(dirname "$obj")"
+
+        if [[ "$f" == *.c ]]; then
+            cmd="$CC $CFLAGS $KERNEL_CPPFLAGS -std=gnu11 -c $f -o $obj"
+        else
+            cmd="$CC $CFLAGS $KERNEL_CPPFLAGS -c $f -o $obj"
+        fi
+        add_entry "$f" "$ROOTDIR" "$cmd"
+    done
+
+    # -------------------------
+    # Libc entries
+    # -------------------------
+    echo "${MAGENTA}[Libc] Generating compile_commands.json${NC}"
+    LIBC_SRCS=$(find src/libc -type f -name '*.c')
+    for f in $LIBC_SRCS; do
+        rel="${f#src/libc/}"
+        obj="$OBJ_DIR/libc/${rel%.c}.o"
+        mkdir -p "$(dirname "$obj")"
+        cmd="$CC $CFLAGS $LIBC_CPPFLAGS -std=gnu11 -c $f -o $obj"
+        add_entry "$f" "$ROOTDIR" "$cmd"
+    done
+
+    echo "]" >> "$OUT_JSON"
+    echo "${GREEN_BOLD}[status] compile_commands.json generated at $OUT_JSON"
+
+    exit 0
+fi
