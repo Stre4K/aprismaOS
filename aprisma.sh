@@ -10,14 +10,16 @@ cat << EOF
 Usage: $0 [OPTIONS]
 
 Options:
+  -d,  --default             Use default build
   --compiler COMPILER        Select cross-compiler (i686-elf-gcc or x86_64-elf-gcc, default: i686-elf-gcc)
   --kernel KERNEL_PATH       Kernel path for ISO (default: build/AprismaOS/sysroot/boot/aprisma.kernel)
   --output ISO_PATH          Output ISO filename (default: aprisma.iso)
-  --homebrew-grub            Use homebrew GRUB instead of system default
+  --homebrew-grub            Use homebrew GRUB instead of system default (REDACTED)
+  --grub-path PATH           Path to GRUB binaries
   --clean                    Clean previous build (build/, sysroot, ISO)
   --build [iso|kernel]       Build ISO (default) or only kernel
   --gen-compile-db           Generate compile_commands.json
-  --run [kernel|iso]         Run QEMU after building
+  -r, --run [kernel|iso]     Run QEMU after building
   --run-path PATH            Path to kernel or ISO when using --run
   -h, --help                 Show this help message
 EOF
@@ -43,6 +45,52 @@ PROJECTS="libc kernel"
 KERNEL_PATH="$SYSROOT/boot/aprisma.kernel"
 
 # ============================
+# Colors
+# ============================
+CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
+BLUE='\033[0;34m'
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+GREEN_BOLD='\033[1;32m'
+YELLOW='\033[0;33m'
+NC='\033[0m'
+
+# ============================
+# Functions
+# ============================
+detect_grub() {
+    CUSTOM_PATH="$1"
+
+    # If user supplied a path
+    if [ -n "$CUSTOM_PATH" ]; then
+        if [ -x "$CUSTOM_PATH/i686-elf-grub-mkrescue" ]; then
+            GRUB_MKRESCUE="$CUSTOM_PATH/i686-elf-grub-mkrescue"
+            return
+        elif [ -x "$CUSTOM_PATH/grub-mkrescue" ]; then
+            GRUB_MKRESCUE="$CUSTOM_PATH/grub-mkrescue"
+            return
+        else
+            echo "${RED}[Error] No grub-mkrescue found in $CUSTOM_PATH${NC}"
+            exit 1
+        fi
+    fi
+
+    # Automatic detection
+    if command -v i686-elf-grub-mkrescue >/dev/null 2>&1; then
+        GRUB_MKRESCUE=$(command -v i686-elf-grub-mkrescue)
+    elif command -v grub-mkrescue >/dev/null 2>&1; then
+        GRUB_MKRESCUE=$(command -v grub-mkrescue)
+    elif command -v brew >/dev/null 2>&1; then
+        GRUB_MKRESCUE="$(brew --prefix)/bin/i686-elf-grub-mkrescue"
+    else
+        echo "${RED}[Error] grub-mkrescue not found.${NC}"
+        exit 1
+    fi
+    echo "${CYAN}[tool] Using GRUB: $GRUB_MKRESCUE${NC}"
+}
+
+# ============================
 # Show help if no options provided
 # ============================
 if [ $# -eq 0 ] && [ -z "$BUILD_TYPE" ] && [ -z "$RUN_MODE" ] && [ "$CLEAN" = "0" ]; then
@@ -56,6 +104,11 @@ fi
 # ============================
 while [ $# -gt 0 ]; do
     case "$1" in
+        -d|--default)
+            BUILD_TYPE="iso"
+            GEN_COMPILE_DB=1
+            shift
+            ;;
         --build)
             BUILD_TYPE="${2:-iso}"
             shift 2
@@ -72,7 +125,7 @@ while [ $# -gt 0 ]; do
             COMPILER="$2"
             shift 2
             ;;
-        --run)
+        -r|--run)
             RUN_MODE="$2"
             shift 2
             ;;
@@ -80,9 +133,13 @@ while [ $# -gt 0 ]; do
             RUN_PATH="$2"
             shift 2
             ;;
-        --homebrew-grub)
-            GRUBDIR=/opt/homebrew/Cellar/i686-elf-grub/2.12/bin
-            shift
+        #--homebrew-grub)
+        #    GRUBDIR=/opt/homebrew/Cellar/i686-elf-grub/2.12/bin
+        #    shift
+        #    ;;
+        --grub-path)
+            detect_grub "$2"
+            shift 2
             ;;
         --clean)
             CLEAN=1
@@ -120,17 +177,6 @@ export CFLAGS='-O2 -g'
 export CPPFLAGS=''
 
 
-# ============================
-# Colors
-# ============================
-CYAN='\033[0;36m'
-MAGENTA='\033[0;35m'
-BLUE='\033[0;34m'
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-GREEN_BOLD='\033[1;32m'
-YELLOW='\033[0;33m'
-NC='\033[0m'
 
 # ============================
 # Clean previous build
@@ -177,6 +223,7 @@ fi
 # Create ISO if needed
 # ============================
 if [ "$BUILD_TYPE" = "iso" ]; then
+    [ -z "$GRUB_MKRESCUE" ] && detect_grub
     echo "${YELLOW}[status] Creating ISO${NC}"
     ISO_DIR=build/isodir
     mkdir -p "$ISO_DIR/boot/grub"
@@ -188,11 +235,12 @@ menuentry "aprisma" {
 }
 EOF
 
-    if [ -n "$GRUBDIR" ]; then
-        "$GRUBDIR/i686-elf-grub-mkrescue" -o "$ISO_OUTPUT" "$ISO_DIR" --quiet
-    else
-        grub-mkrescue -o "$ISO_OUTPUT" "$ISO_DIR" --quiet
-    fi
+    #if [ -n "$GRUBDIR" ]; then
+    #    "$GRUBDIR/i686-elf-grub-mkrescue" -o "$ISO_OUTPUT" "$ISO_DIR" --quiet
+    #else
+    #    grub-mkrescue -o "$ISO_OUTPUT" "$ISO_DIR" --quiet
+    #fi
+    "$GRUB_MKRESCUE" -o "$ISO_OUTPUT" "$ISO_DIR" --quiet
     echo "${GREEN_BOLD}[status] ISO created: $ISO_DIR/aprisma.iso${NC}"
 fi
 
@@ -259,12 +307,12 @@ if [ "$GEN_COMPILE_DB" = "1" ]; then
     # -------------------------
     # Kernel entries
     # -------------------------
-    echo "${BLUE}[Kernel] Generating compile_commands.json${NC}"
+    echo "${BLUE}[kernel] Generating compile_commands.json${NC}"
     KERNEL_SRCS=$(find src/kernel/kernel src/kernel/arch/i386 -type f \( -name '*.c' -o -name '*.S' \))
     for f in $KERNEL_SRCS; do
         rel="${f#src/kernel/}"
-        obj="$OBJ_DIR/kernel/${rel%.c}.o"
-        obj="$OBJ_DIR/kernel/${rel%.S}.o"
+        obj="$OBJ_DIR/kernel/${rel%.*}.o"
+        #obj="$OBJ_DIR/kernel/${rel%.S}.o"
         mkdir -p "$(dirname "$obj")"
 
         if [[ "$f" == *.c ]]; then
@@ -278,7 +326,7 @@ if [ "$GEN_COMPILE_DB" = "1" ]; then
     # -------------------------
     # Libc entries
     # -------------------------
-    echo "${MAGENTA}[Libc] Generating compile_commands.json${NC}"
+    echo "${MAGENTA}[libc] Generating compile_commands.json${NC}"
     LIBC_SRCS=$(find src/libc -type f -name '*.c')
     for f in $LIBC_SRCS; do
         rel="${f#src/libc/}"
@@ -293,3 +341,5 @@ if [ "$GEN_COMPILE_DB" = "1" ]; then
 
     exit 0
 fi
+
+

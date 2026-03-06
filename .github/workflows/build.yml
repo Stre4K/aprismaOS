@@ -61,7 +61,8 @@ jobs:
           brew update
           brew install make xorriso qemu i686-elf-binutils i686-elf-gcc i686-elf-grub
       - name: Build kernel + ISO (macOS)
-        run: sh aprisma.sh --build iso --homebrew-grub
+        #run: sh aprisma.sh --build iso --homebrew-grub
+        run: sh aprisma.sh --default
 
       - name: Upload kernel artifact (macOS)
         uses: actions/upload-artifact@v4
