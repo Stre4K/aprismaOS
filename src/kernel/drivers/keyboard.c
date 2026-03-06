@@ -1,4 +1,4 @@
-// kernel/arch/i386/drivers/keyboard.c
+// kernel/drivers/keyboard.c
 #include <kernel/drivers/keyboard.h>
 #include <kernel/arch/portio.h>
 #include <kernel/arch/isr.h>

@@ -1,7 +1,8 @@
-#ifndef ARCH_I386_VGA_H
-#define ARCH_I386_VGA_H
+#ifndef DRIVERS_VGA_H
+#define DRIVERS_VGA_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 
 static const size_t VGA_WIDTH = 80;

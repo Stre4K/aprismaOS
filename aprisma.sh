@@ -29,7 +29,8 @@ EOF
 # Defaults
 # ============================
 COMPILER=i686-elf-gcc
-ROOTDIR=$(pwd)                   # top-level project directory
+#ROOTDIR=$(pwd)                   # top-level project directory
+ROOTDIR="$(cd "$(dirname "$0")" && pwd)"
 SYSROOT=$ROOTDIR/build/AprismaOS/sysroot
 OBJ_DIR=$ROOTDIR/build/objects
 ISO_OUTPUT=$ROOTDIR/build/aprisma.iso
@@ -183,7 +184,7 @@ export CPPFLAGS=''
 # ============================
 if [ "$CLEAN" = "1" ]; then
     echo "${YELLOW}[status] Cleaning previous build${NC}"
-    rm -rf build #build/AprismaOS build/objects "$ISO_OUTPUT"
+    rm -rf $ROOTDIR/build #build/AprismaOS build/objects "$ISO_OUTPUT"
     #    for PROJECT in $PROJECTS; do
     #        (cd "$ROOTDIR/src/$PROJECT" && \
     #            ROOTDIR="$ROOTDIR" \
@@ -275,7 +276,7 @@ if [ "$GEN_COMPILE_DB" = "1" ]; then
     # Manual compile_commands.json generator for AprismaOS
     # ============================
 
-    ROOTDIR=$(pwd)
+    #ROOTDIR=$(pwd)
     OBJ_DIR="$ROOTDIR/build/objects"
     SYSROOT="$ROOTDIR/build/AprismaOS/sysroot"
     CC="i686-elf-gcc"
@@ -308,7 +309,8 @@ if [ "$GEN_COMPILE_DB" = "1" ]; then
     # Kernel entries
     # -------------------------
     echo "${BLUE}[kernel] Generating compile_commands.json${NC}"
-    KERNEL_SRCS=$(find src/kernel/kernel src/kernel/arch/i386 -type f \( -name '*.c' -o -name '*.S' \))
+    #KERNEL_SRCS=$(find src/kernel/core src/kernel/arch/i386 -type f \( -name '*.c' -o -name '*.S' \))
+    KERNEL_SRCS=$(find $ROOTDIR/src/kernel/ -type f \( -name '*.c' -o -name '*.S' \))
     for f in $KERNEL_SRCS; do
         rel="${f#src/kernel/}"
         obj="$OBJ_DIR/kernel/${rel%.*}.o"
@@ -327,7 +329,7 @@ if [ "$GEN_COMPILE_DB" = "1" ]; then
     # Libc entries
     # -------------------------
     echo "${MAGENTA}[libc] Generating compile_commands.json${NC}"
-    LIBC_SRCS=$(find src/libc -type f -name '*.c')
+    LIBC_SRCS=$(find $ROOTDIR/src/libc -type f -name '*.c')
     for f in $LIBC_SRCS; do
         rel="${f#src/libc/}"
         obj="$OBJ_DIR/libc/${rel%.c}.o"

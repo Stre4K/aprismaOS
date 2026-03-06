@@ -9,7 +9,8 @@ LIBS?=
 # Paths
 # -------------------------
 SRC_DIR ?= $(ROOTDIR)/src/kernel
-OBJ_DIR ?= $(OBJ_DIR)/kernel
+OBJ_BASE ?= $(ROOTDIR)/build/objects
+OBJ_DIR := $(OBJ_DIR)/kernel
 ARCHDIR ?= $(SRC_DIR)/arch/$(HOSTARCH)
 SYSROOT ?= $(SYSROOT)
 
@@ -24,8 +25,9 @@ LDFLAGS  += $(KERNEL_ARCH_LDFLAGS)
 LIBS     += $(KERNEL_ARCH_LIBS)
 
 # Kernel sources and objects
-KERNEL_SRCS := $(shell find $(SRC_DIR)/kernel -name '*.c') \
-               $(shell find $(SRC_DIR)/arch/$(HOSTARCH) -name '*.c' -o -name '*.S')
+KERNEL_SRCS := $(shell find $(SRC_DIR) -name '*.c' -o -name '*.S')
+			   #$(shell find $(SRC_DIR)/core -name '*.c') \
+               #$(shell find $(SRC_DIR)/arch/$(HOSTARCH) -name '*.c' -o -name '*.S')
 KERNEL_OBJS := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(KERNEL_SRCS))
 KERNEL_OBJS := $(patsubst $(SRC_DIR)/%.S,$(OBJ_DIR)/%.o,$(KERNEL_OBJS))
 
