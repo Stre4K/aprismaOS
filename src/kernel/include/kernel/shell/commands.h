@@ -15,6 +15,7 @@ typedef struct {
 
 void cmd_clear(int argc, char **argv);
 void cmd_echo(int argc, char **argv);
+void cmd_help(int argc, char **argv);
 
 void init_shell_commands();
 
