@@ -72,6 +72,12 @@ void terminal_clear_line(const size_t terminal_row) {
     }
 }
 
+void terminal_clear_screen(void) {
+    for (size_t y = 0; y < VGA_HEIGHT; y++) {
+        terminal_clear_line(y);
+    }
+}
+
 void terminal_scroll(void) {
     // Move each row up by copying the next row
     for (size_t y = 1; y < VGA_HEIGHT; y++) {

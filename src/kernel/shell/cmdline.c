@@ -3,6 +3,9 @@
 #include <kernel/printk.h>
 #include <string.h>
 
+#include <kernel/shell/shell.h>
+#include <kernel/shell/commands.h>
+
 #define CMDLINE_MAX_LEN 128
 
 static char cmdline_buffer[CMDLINE_MAX_LEN];
@@ -20,7 +23,7 @@ void cmdline_input_char(char c) {
     if (c == '\n') {
         terminal_putchar('\n');
         cmdline_buffer[cmdline_length] = '\0';
-        printk("You typed: %s\n", cmdline_buffer);
+        shell(cmdline_buffer);
         cmdline_init(); // reset for next command
         return;
     }

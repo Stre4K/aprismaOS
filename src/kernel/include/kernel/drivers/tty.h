@@ -10,6 +10,7 @@ void terminal_putentryat(unsigned char c, uint8_t color, size_t x, size_t y);
 void terminal_write(const char *data, size_t size);
 void terminal_writestring(const char *data);
 void terminal_clear_line(const size_t terminal_row);
+void terminal_clear_screen(void);
 void terminal_scroll(void);
 
 size_t tty_get_row(void);

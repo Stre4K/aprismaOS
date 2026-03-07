@@ -10,6 +10,7 @@
 #include <kernel/arch/timer.h>
 #include <kernel/drivers/tty.h>
 #include <kernel/printk.h>
+#include <kernel/shell/commands.h>
 void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     terminal_initialize();
 
@@ -37,6 +38,8 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     pic_init();
     //pit_init();
     keyboard_init();
+
+    init_shell_commands();
 
     // Currently unused
     //lapic_init();
