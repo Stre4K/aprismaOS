@@ -24,6 +24,7 @@ void cmd_cpuid(int argc, char **argv);
 void cmd_panic(int argc, char **argv);
 void cmd_mem(int argc, char **argv);
 void cmd_stack(int argc, char **argv);
+void cmd_cpumode(int argc, char **argv);
 
 void cmd_test(int argc, char **argv);
 

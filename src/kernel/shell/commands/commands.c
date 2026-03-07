@@ -20,6 +20,7 @@ void init_shell_commands(void) {
     shell_register_command("stack", "Display stack information", cmd_stack);
 
     shell_register_command("panic", "Panic the system", cmd_panic);
+    shell_register_command("cpumode", "Display CPU mode", cmd_cpumode);
 
     shell_register_command("test", "Kernel test command", cmd_test);
 }
