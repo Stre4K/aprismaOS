@@ -283,8 +283,12 @@ if [ "$GEN_COMPILE_DB" = "1" ]; then
 
     # Common flags
     CFLAGS="-O2 -g -ffreestanding -Wall -Wextra -nostdlib -nostdinc -Werror"
-    KERNEL_CPPFLAGS="-D__is_kernel -Isrc/kernel/include -I$SYSROOT/include"
-    LIBC_CPPFLAGS="-D__is_libc -Isrc/libc/include -I$SYSROOT/include"
+    #KERNEL_CPPFLAGS="-D__is_kernel -Isrc/kernel/include -I$SYSROOT/include"
+    #LIBC_CPPFLAGS="-D__is_libc -Isrc/libc/include -I$SYSROOT/include"
+
+    COMMON_INCLUDES="-Isrc/kernel/include -Isrc/libc/include"
+    KERNEL_CPPFLAGS="-D__is_kernel $COMMON_INCLUDES"
+    LIBC_CPPFLAGS="-D__is_libc $COMMON_INCLUDES"
 
     OUT_JSON="$ROOTDIR/compile_commands.json"
 
