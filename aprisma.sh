@@ -226,7 +226,7 @@ fi
 if [ "$BUILD_TYPE" = "iso" ]; then
     [ -z "$GRUB_MKRESCUE" ] && detect_grub
     echo "${YELLOW}[status] Creating ISO${NC}"
-    ISO_DIR=build/isodir
+    ISO_DIR=$ROOTDIR/build/isodir
     mkdir -p "$ISO_DIR/boot/grub"
     cp "$KERNEL_PATH" "$ISO_DIR/boot/aprisma.kernel"
 
@@ -316,7 +316,7 @@ if [ "$GEN_COMPILE_DB" = "1" ]; then
     #KERNEL_SRCS=$(find src/kernel/core src/kernel/arch/i386 -type f \( -name '*.c' -o -name '*.S' \))
     KERNEL_SRCS=$(find $ROOTDIR/src/kernel/ -type f \( -name '*.c' -o -name '*.S' \))
     for f in $KERNEL_SRCS; do
-        rel="${f#src/kernel/}"
+        rel="${f#$ROOTDIR/src/kernel/}"
         obj="$OBJ_DIR/kernel/${rel%.*}.o"
         #obj="$OBJ_DIR/kernel/${rel%.S}.o"
         mkdir -p "$(dirname "$obj")"
@@ -335,7 +335,7 @@ if [ "$GEN_COMPILE_DB" = "1" ]; then
     echo "${MAGENTA}[libc] Generating compile_commands.json${NC}"
     LIBC_SRCS=$(find $ROOTDIR/src/libc -type f -name '*.c')
     for f in $LIBC_SRCS; do
-        rel="${f#src/libc/}"
+        rel="${f#$ROOTDIR/src/libc/}"
         obj="$OBJ_DIR/libc/${rel%.c}.o"
         mkdir -p "$(dirname "$obj")"
         cmd="$CC $CFLAGS $LIBC_CPPFLAGS -std=gnu11 -c $f -o $obj"
