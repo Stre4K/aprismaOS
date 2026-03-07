@@ -22,6 +22,8 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     if (mb_info_ptr == NULL) {
         // No Multiboot info
     }
+    multiboot_init(mb_info_ptr);
+    printk("address of multiboot_info: %p\n", mb_info_ptr);
     //print_multiboot_info((multiboot_info_t *)mb_info_ptr);
     init_gdt();
     printk("[GDT] Loaded\n");
@@ -36,7 +38,7 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     }
 
     pic_init();
-    //pit_init();
+    pit_init();
     keyboard_init();
 
     init_shell_commands();

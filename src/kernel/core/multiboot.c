@@ -1,6 +1,16 @@
 #include <kernel/multiboot.h>
 #include <kernel/printk.h>  // needed for printk
 
+static multiboot_info_t *g_multiboot_info = 0;
+
+void multiboot_init(multiboot_info_t *mbi) {
+    g_multiboot_info = mbi;
+}
+
+multiboot_info_t *multiboot_get_info() {
+    return g_multiboot_info;
+}
+
 void print_multiboot_info(multiboot_info_t *mbi) {
     printk("=== Multiboot Info ===\n");
 

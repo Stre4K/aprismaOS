@@ -72,9 +72,20 @@ void pit_interrupt_handler(regs_t* regs) {
     pit_ticks++;
     if (pit_ticks % 100 == 0) {
        pit_timer++;
-       printk("PIT timer: %lld\n", pit_timer);
+       //printk("PIT timer: %lld\n", pit_timer);
     }
     pic_send_eoi(PIT_IRQ);
+}
+/* ========================================
+ * PIT getters
+ * ======================================== */
+
+uint64_t pit_get_ticks(void) {
+    return pit_ticks;
+}
+
+uint64_t pit_get_timer(void) {
+    return pit_timer;
 }
 
 /* ========================================

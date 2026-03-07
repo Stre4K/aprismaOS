@@ -15,6 +15,8 @@ void pit_set_frequency(uint32_t hz);
 void pit_interrupt_handler(regs_t* regs);
 void pit_init();
 void pit_calibration_wait(uint32_t ticks);
+uint64_t pit_get_ticks();
+uint64_t pit_get_timer();
 
 #endif
 

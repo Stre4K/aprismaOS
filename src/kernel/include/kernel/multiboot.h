@@ -73,6 +73,8 @@ typedef struct multiboot_vbe_info {
 } __attribute__((packed)) multiboot_vbe_info_t;
 
 /* Function declaration */
+void multiboot_init(multiboot_info_t *mbi);
+multiboot_info_t *multiboot_get_info();
 void print_multiboot_info(multiboot_info_t *mbi);
 
 #endif
