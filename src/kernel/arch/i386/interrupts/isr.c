@@ -6,6 +6,22 @@
 #include <stdint.h>
 
 /* ========================================================
+ * simple ISR handler registration
+ * ======================================================== */
+#define MAX_ISRS 32
+static void (*isr_handlers[MAX_ISRS])(regs_t* regs);
+
+void register_isr_handler(int isr, void (*handler)(regs_t* regs)) {
+    if (isr < 0 || isr >= MAX_ISRS) return;
+    isr_handlers[isr] = handler;
+}
+
+void unregister_isr_handler(int isr) {
+    if (isr < 0 || isr >= MAX_ISRS) return;
+    isr_handlers[isr] = 0;
+}
+
+/* ========================================================
  * simple IRQ handler registration
  * ======================================================== */
 
@@ -33,6 +49,19 @@ void isr_common_handler(void* regs) {
     uint8_t int_no = r->int_no;
     //printk("[ISR] int_no: %d\n", int_no);
 
+
+    /* CPU exceptions */
+    if (int_no < 32) {
+        if (isr_handlers[int_no]) {
+            isr_handlers[int_no](r);
+            return;
+        }
+
+        printk("Unhandled CPU exception: %d\n", int_no);
+        for(;;) asm volatile("hlt");
+    }
+
+    /* Hardware IRQs */
     if (int_no >= 32 && int_no < 48) {
         int irq = int_no - 32;
         if (irq < MAX_IRQS && irq_handlers[irq]) {
