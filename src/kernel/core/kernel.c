@@ -12,6 +12,10 @@
 #include <kernel/printk.h>
 #include <kernel/shell/commands.h>
 #include <kernel/mm/memory_map.h>
+#include <kernel/mm/fault.h>
+#include <kernel/mm/paging.h>
+#include <kernel/mm/memory_map.h>
+#include <kernel/mm/pmm.h>
 void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     terminal_initialize();
 
@@ -30,8 +34,16 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     init_gdt();
     printk("[GDT] Loaded\n");
 
+    memory_map_detect(mb_info_ptr);
+    pmm_init(mb_info_ptr);
+    paging_init();
+    enable_paging(page_directory);
+
+
     init_idt();
     printk("[IDT] Loaded\n");
+
+    register_isr_handler(14, page_fault_handler);
 
 
     if (cpuid_supported_check()) {

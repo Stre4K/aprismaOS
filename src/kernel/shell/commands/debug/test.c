@@ -5,6 +5,7 @@
 
 #include <kernel/printk.h>
 #include <string.h>
+#include <stdint.h>
 
 void cmd_test(int argc, char **argv)
 {
@@ -22,6 +23,11 @@ void cmd_test(int argc, char **argv)
     else if (strcmp(argv[1], "printk") == 0)
     {
         printk("printk works!\n");
+    }
+    else if (strcmp(argv[1], "pagefault") == 0)
+    {
+        volatile uint32_t *ptr = (uint32_t*)0xDEADBEEF;
+        *ptr = 0x1234;
     }
     else
     {
