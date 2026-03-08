@@ -11,6 +11,7 @@
 #include <kernel/drivers/tty.h>
 #include <kernel/printk.h>
 #include <kernel/shell/commands.h>
+#include <kernel/mm/memory_map.h>
 void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     terminal_initialize();
 
@@ -23,6 +24,7 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
         // No Multiboot info
     }
     multiboot_init(mb_info_ptr);
+    memory_map_detect(mb_info_ptr);
     printk("address of multiboot_info: %p\n", mb_info_ptr);
     //print_multiboot_info((multiboot_info_t *)mb_info_ptr);
     init_gdt();
