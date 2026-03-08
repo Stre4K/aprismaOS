@@ -38,6 +38,16 @@ SECTIONS
 		*(.bss)
 	}
 
+    /* mark kernel end */
+    /*
+    .kernel_end ALIGN(4K) :
+    {
+        PROVIDE(kernel_end = .);
+    }
+    */
+    /* mark kernel end */
+    kernel_end = .;
+
 	/* The compiler may produce other sections, put them in the proper place in
 	   in this file, if you'd like to include them in the final kernel. */
     /* ---- Add signature section ---- */
