@@ -96,6 +96,7 @@ void cpuid_detect_features_print() {
     if (info.ecx & bit_RDRND)     printk("  - RDRAND\n");
 
     printk("[EDX features]:\n");
+    if (info.edx & bit_PAE)       printk("  - PAE\n");
     if (info.edx & bit_APIC)      printk("  - APIC\n");
     if (info.edx & bit_CMOV)      printk("  - CMOV\n");
     if (info.edx & bit_MMX)       printk("  - MMX\n");
