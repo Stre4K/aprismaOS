@@ -16,6 +16,7 @@
 #include <kernel/mm/paging.h>
 #include <kernel/mm/memory_map.h>
 #include <kernel/mm/pmm.h>
+#include <kernel/mm/kmalloc.h>
 void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     terminal_initialize();
 
@@ -63,6 +64,22 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     //lapic_keyboard_init();
 
     enable_interrupts();
+
+    /*
+    int* test_val = kmalloc(sizeof(int));
+    *test_val = 1234;
+
+    uint32_t phys = get_physaddr((uint32_t)test_val);
+
+    printk("virt: %x phys: %x val: %d\n", test_val, phys, *test_val);
+    printk("phys: %x, val: %d\n", phys, *(uint32_t*)phys);
+    */
+
+    dump_mapping((uint32_t)kmalloc(4*1024));
+    dump_mapping((uint32_t)kmalloc(4*1024));
+    dump_mapping((uint32_t)kmalloc(4*1024));
+
+    //test_paging(); // Panics if cr0 WP bit is set, otherwise undefined behavior
 
     while(1) {
         continue;
