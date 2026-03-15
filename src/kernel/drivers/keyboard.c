@@ -56,6 +56,12 @@ static void handle_extended_scancode(uint8_t sc) {
             }
             tty_move_cursor(1, 0);
             break;  // RIGHT
+        case 0x49: // PGUP
+            terminal_scroll_up();
+            break;
+        case 0x51: // PGDN
+            terminal_scroll_down();
+            break;
         default:
             printk("[UNKNOWN EXT: %02X]", code);
             break;

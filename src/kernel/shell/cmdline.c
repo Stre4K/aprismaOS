@@ -19,7 +19,10 @@ void cmdline_init(void) {
     tty_set_cursor(0, tty_get_row());
 }
 
+
 void cmdline_input_char(char c) {
+    terminal_scroll_to_bottom();
+
     if (c == '\n') {
         terminal_putchar('\n');
         cmdline_buffer[cmdline_length] = '\0';
@@ -58,6 +61,7 @@ void cmdline_redraw(void) {
     for (size_t i = 0; i < cmdline_length; i++) {
         terminal_putentryat(cmdline_buffer[i], tty_get_color(), i, row);
     }
+    terminal_render();
     tty_set_cursor(cmdline_cursor, row);
 }
 
