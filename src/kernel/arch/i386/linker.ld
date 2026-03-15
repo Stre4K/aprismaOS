@@ -38,6 +38,14 @@ SECTIONS
 		*(.bss)
 	}
 
+    /* Shell command table */
+    .shell_commands BLOCK(4K) : ALIGN(4K)
+    {
+        __start_shell_commands = .;
+        KEEP(*(.shell_commands*))
+        __stop_shell_commands = .;
+    }
+
     /* mark kernel end */
     /*
     .kernel_end ALIGN(4K) :

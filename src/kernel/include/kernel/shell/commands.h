@@ -1,40 +1,21 @@
 // <kernel/shell/commands.h>
 // Author: Stre4K
-// Date: 2026-03-09
+// Date: 2026-03-15
 
 #ifndef __KERNEL_SHELL_COMMANDS_H__
 #define __KERNEL_SHELL_COMMANDS_H__
 
-
 typedef struct {
+    const char *category;
     const char *name;
     const char *description;
     void (*func)(int argc, char **argv);
 } shell_command_t;
 
-
-void init_shell_commands();
-
-/* ==== Commands === */
-// User
-void cmd_help(int argc, char **argv);
-void cmd_clear(int argc, char **argv);
-void cmd_echo(int argc, char **argv);
-
-// System
-void cmd_version(int argc, char **argv);
-void cmd_reboot(int argc, char **argv);
-void cmd_uptime(int argc, char **argv);
-
-// CPU
-void cmd_cpuid(int argc, char **argv);
-void cmd_cpumode(int argc, char **argv);
-void cmd_mem(int argc, char **argv);
-
-// Debug
-void cmd_panic(int argc, char **argv);
-void cmd_stack(int argc, char **argv);
-void cmd_test(int argc, char **argv);
-
+#define SHELL_CMD(cat, name, desc, fn) \
+static const shell_command_t shell_cmd_##fn \
+__attribute__((section(".shell_commands"), used)) = { \
+    cat, name, desc, fn \
+}
 
 #endif // KERNEL_SHELL_COMMANDS_H

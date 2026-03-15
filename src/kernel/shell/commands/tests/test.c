@@ -1,7 +1,14 @@
 // test.c
 // <kernel/shell/commands.h>
 // Author: Stre4K
-// Date: 2026-03-07
+// Date: 2026-03-14
+
+
+#include <kernel/config.h>
+
+#ifdef CONFIG_CMD_TESTS
+
+#include <kernel/shell/commands.h>
 
 #include <kernel/printk.h>
 #include <string.h>
@@ -34,3 +41,7 @@ void cmd_test(int argc, char **argv)
         printk("Unknown test\n");
     }
 }
+
+SHELL_CMD("tests", "test", "Kernel test command", cmd_test);
+
+#endif // CONFIG_CMD_TESTS

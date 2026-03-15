@@ -1,7 +1,13 @@
 // mem.c
 // <kernel/shell/commands.h>
 // Author: Stre4K
-// Date: 2026-03-07
+// Date: 2026-03-14
+
+#include <kernel/config.h>
+
+#ifdef CONFIG_CMD_MEMORY
+
+#include <kernel/shell/commands.h>
 
 #include <kernel/multiboot.h>
 #include <kernel/printk.h>
@@ -19,3 +25,7 @@ void cmd_mem(int argc, char **argv)
 
     memory_map_detect(mbi);
 }
+
+SHELL_CMD("memory", "mem", "Display memory information", cmd_mem);
+
+#endif // CONFIG_CMD_MEM

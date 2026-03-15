@@ -1,7 +1,15 @@
 // uptime.c
 // <kernel/shell/commands.h>
 // Author: Stre4K
-// Date: 2026-03-07
+// Date: 2026-03-14
+
+#include <kernel/config.h>
+
+#ifdef CONFIG_CMD_SYSTEM
+
+#include <kernel/shell/commands.h>
+
+
 
 #include <kernel/arch/timer.h>
 #include <kernel/printk.h>
@@ -17,3 +25,6 @@ void cmd_uptime(int argc, char **argv) {
     printk("Uptime: %lld days, %lld hours, %lld minutes, %lld seconds, (%lld ticks)\n", days, hours % 24, minutes % 60, seconds % 60, ticks);
 }
 
+SHELL_CMD("system", "uptime", "Show system uptime", cmd_uptime);
+
+#endif // CONFIG_CMD_SYSTEM
