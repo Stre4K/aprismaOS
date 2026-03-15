@@ -130,6 +130,14 @@ void terminal_render(void) {
     terminal_render_range(0, VGA_HEIGHT);
 }
 
+// ----------------- Deferred Rendering -----------------
+static bool terminal_defer_render = false;
+
+void terminal_set_defer_render(bool defer) {
+    terminal_defer_render = defer;
+}
+
+
 // ================================================================
 // ======================= CHARACTER OUTPUT ======================
 // ================================================================
@@ -192,7 +200,9 @@ void terminal_putchar(char c) {
         }
     }
 
-    terminal_render();
+    if (!terminal_defer_render) {
+        terminal_render();
+    }
  }
 
 

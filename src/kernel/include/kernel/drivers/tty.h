@@ -2,6 +2,7 @@
 #define _KERNEL_TTY_H
 
 #include <stddef.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 void terminal_initialize(void);
@@ -27,6 +28,8 @@ void terminal_scroll_up(void);
 void terminal_scroll_down(void);
 void terminal_scroll_to_bottom(void);
 void terminal_newline(void);
+
+void terminal_set_defer_render(bool defer);
 
 void vga_enable_cursor(void);
 void vga_disable_cursor(void);
