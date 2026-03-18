@@ -326,9 +326,9 @@ if [ "$GEN_COMPILE_DB" = "1" ]; then
     first=1
 
     add_entry() {
-        local file="$1"
-        local dir="$2"
-        local cmd="$3"
+        file="$1"
+        dir="$2"
+        cmd="$3"
 
         [ $first -eq 1 ] || echo "," >> "$OUT_JSON"
         first=0
@@ -347,11 +347,20 @@ if [ "$GEN_COMPILE_DB" = "1" ]; then
         #obj="$OBJ_DIR/kernel/${rel%.S}.o"
         mkdir -p "$(dirname "$obj")"
 
-        if [[ "$f" == *.c ]]; then
-            cmd="$CC $CFLAGS $KERNEL_CPPFLAGS -std=gnu11 -c $f -o $obj"
-        else
-            cmd="$CC $CFLAGS $KERNEL_CPPFLAGS -c $f -o $obj"
-        fi
+        #if [[ "$f" == *.c ]]; then
+        #    cmd="$CC $CFLAGS $KERNEL_CPPFLAGS -std=gnu11 -c $f -o $obj"
+        #else
+        #    cmd="$CC $CFLAGS $KERNEL_CPPFLAGS -c $f -o $obj"
+        #fi
+
+        case "$f" in
+            *.c)
+                cmd="$CC $CFLAGS $KERNEL_CPPFLAGS -std=gnu11 -c $f -o $obj"
+                ;;
+            *)
+                cmd="$CC $CFLAGS $KERNEL_CPPFLAGS -c $f -o $obj"
+                ;;
+        esac
         add_entry "$f" "$ROOTDIR" "$cmd"
     done
 
