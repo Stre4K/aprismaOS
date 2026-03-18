@@ -20,7 +20,9 @@ Options:
   --build [iso|kernel]       Build ISO (default) or only kernel
   --gen-compile-db           Generate compile_commands.json
   -r, --run [kernel|iso]     Run QEMU after building
+  -rd, --run-debug           Run QEMU in debugger mode [kernel|iso]
   --run-path PATH            Path to kernel or ISO when using --run
+  --gdb                      Run gdb and connect to QEMU
   -h, --help                 Show this help message
 EOF
 }
@@ -28,6 +30,7 @@ EOF
 # ============================
 # Defaults
 # ============================
+DEBUGGER=i686-elf-gdb
 COMPILER=i686-elf-gcc
 #ROOTDIR=$(pwd)                   # top-level project directory
 ROOTDIR="$(cd "$(dirname "$0")" && pwd)"
@@ -37,6 +40,8 @@ ISO_OUTPUT=$ROOTDIR/build/aprisma.iso
 GRUBDIR=
 RUN_MODE=
 RUN_PATH=
+QEMU_GDB_DEBUG=
+GDB=0
 BUILD_TYPE=""  # empty means no build
 CLEAN=0
 MAKE=${MAKE:-make}
@@ -133,6 +138,15 @@ while [ $# -gt 0 ]; do
         --run-path)
             RUN_PATH="$2"
             shift 2
+            ;;
+        -rd|--run-debug)
+            RUN_MODE="$2"
+            QEMU_GDB_DEBUG="-S -s"
+            shift 2
+            ;;
+        --gdb)
+            GDB=1
+            shift
             ;;
         #--homebrew-grub)
         #    GRUBDIR=/opt/homebrew/Cellar/i686-elf-grub/2.12/bin
@@ -258,7 +272,7 @@ if [ -n "$RUN_MODE" ]; then
         iso)
             RUN_ISO=${RUN_PATH:-"$ISO_OUTPUT"}
             echo "Running ISO in QEMU: $RUN_ISO"
-            qemu-system-i386 -cdrom "$RUN_ISO" -boot d -monitor stdio
+            qemu-system-i386 -cdrom "$RUN_ISO" -boot d -monitor stdio $QEMU_GDB_DEBUG
             ;;
         *)
             echo "Unknown run mode: $RUN_MODE"
@@ -266,6 +280,18 @@ if [ -n "$RUN_MODE" ]; then
             ;;
     esac
 fi
+
+# ============================
+# Run GDB on qemu
+# ============================
+if [ "$GDB" = "1" ]; then
+    echo "${YELLOW}[status] Connecting to qemu${NC}"
+    $DEBUGGER $KERNEL_PATH -ex "target remote :1234" # Run gdb on qemu
+    #    done
+    echo "${GREEN_BOLD}[status] Connected with gdb${NC}"
+        exit 0
+    fi
+
 
 
 # ============================
