@@ -18,6 +18,8 @@
 #include <kernel/mm/memory_map.h>
 #include <kernel/mm/pmm.h>
 void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
+    disable_interrupts();
+
     terminal_initialize();
 
     if (magic != 0x2BADB002) {
