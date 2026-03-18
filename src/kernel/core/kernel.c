@@ -7,6 +7,7 @@
 #include <kernel/arch/pic.h>
 #include <kernel/arch/portio.h>
 #include <kernel/drivers/keyboard.h>
+#include <kernel/drivers/ps2.h>
 #include <kernel/arch/timer.h>
 #include <kernel/drivers/tty.h>
 #include <kernel/printk.h>
@@ -53,6 +54,8 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
 
     pic_init();
     pit_init();
+
+    ps2_controller_init();
     keyboard_init();
 
 

@@ -1,6 +1,6 @@
 // kernel/drivers/keyboard.c
 #include <kernel/drivers/keyboard.h>
-#include <kernel/arch/portio.h>
+#include <kernel/drivers/ps2.h>
 #include <kernel/arch/isr.h>
 #include <kernel/arch/pic.h>
 #include <kernel/printk.h>
@@ -131,7 +131,7 @@ bool is_ctrl_release(uint8_t sc) {
 
 static void keyboard_irq_handler(regs_t *regs) {
     (void)regs;
-    uint8_t sc = inb(KBD_DATA_PORT);
+    uint8_t sc = ps2_read();
 
     // Handle extended scancode prefix
     if (sc == 0xE0) {
@@ -173,18 +173,26 @@ static void keyboard_irq_handler(regs_t *regs) {
 }
 
 
-
-
 /* ======================================================================
  * Keyboard driver Initialization
  * ====================================================================== */
 
-/* Startup helper to register keyboard driver. Call from kernel init after idt/pic setup */
+/* Startup helper to register keyboard driver. Call from kernel init after idt/pic setup and ps2 init */
 void keyboard_init(void) {
-    /* mask/unmask IRQ1 as needed. We'll clear the mask for IRQ1 */
-    pic_clear_mask_irq(KBD_IRQ);
-
     /* register handler for IRQ1 (IRQ number not vector): register for irq index 1 */
     register_irq_handler(KBD_IRQ, keyboard_irq_handler);
+
+    // Enable scanning (keyboard command 0xF4)
+    ps2_write(KBD_CMD_ENABLE_SCANNING);
+
+    uint8_t ack = ps2_read();
+    if (ack == PS2_RESP_ACK) {
+        printk("[KEYBOARD] Initialized successfully\n");
+    } else {
+        printk("[KEYBOARD] Init error: %02X\n", ack);
+    }
+
+    /* mask/unmask IRQ1 as needed. We'll clear the mask for IRQ1 */
+    pic_clear_mask_irq(KBD_IRQ);
 }
 
