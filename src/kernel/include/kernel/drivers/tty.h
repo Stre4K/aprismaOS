@@ -27,6 +27,7 @@ void terminal_render(void);
 void terminal_scroll_up(void);
 void terminal_scroll_down(void);
 void terminal_scroll_to_bottom(void);
+void terminal_scroll_to_top(void);
 void terminal_newline(void);
 
 void terminal_set_defer_render(bool defer);

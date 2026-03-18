@@ -184,7 +184,12 @@ void terminal_newline(void) {
 void terminal_putchar(char c) {
 
     // Always snap to newest output //
-    history_view = history_head - (VGA_HEIGHT - 1);
+    //history_view = history_head - (VGA_HEIGHT - 1);
+
+    if (history_head >= VGA_HEIGHT - 1)
+        history_view = history_head - (VGA_HEIGHT - 1);
+    else
+        history_view = 0;
 
     if (c == '\n') {
         terminal_newline();
@@ -275,8 +280,6 @@ void terminal_scroll_down(void) {
 
 void terminal_scroll_to_bottom(void)
 {
-    history_view = history_head - (VGA_HEIGHT - 1);
-
     if (history_head >= VGA_HEIGHT - 1) {
         history_view = history_head - (VGA_HEIGHT - 1);
     } else {
@@ -287,6 +290,14 @@ void terminal_scroll_to_bottom(void)
     vga_update_cursor(terminal_row, terminal_column);
 }
 
+void terminal_scroll_to_top(void)
+{
+    history_view = 0;
+    terminal_render();
+
+    vga_enable_cursor();
+    vga_update_cursor(terminal_row, terminal_column);
+}
 
 // ================================================================
 // ======================= INTERACTIVE HELPERS ===================
