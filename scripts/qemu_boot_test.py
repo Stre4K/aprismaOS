@@ -140,6 +140,10 @@ def main():
     parser.add_argument("--run", nargs=2, action="append", default=[], metavar=("COMMAND", "EXPECT"),
                         help="after boot, type COMMAND and wait for the regex EXPECT (repeatable)")
     parser.add_argument("--timeout", type=float, default=60, help="seconds allowed for each step")
+    parser.add_argument("--boot-done", default=BOOT_DONE, metavar="REGEX",
+                        help="screen text that marks the end of the boot (default: keyboard initialized)")
+    parser.add_argument("--qemu-arg", action="append", default=[], metavar="ARG",
+                        help="extra QEMU argument, e.g. --qemu-arg=-machine --qemu-arg=pc,i8042=off (repeatable)")
     parser.add_argument("--objcopy", default="objcopy", help="objcopy used to convert x86_64 kernels")
     args = parser.parse_args()
 
@@ -165,14 +169,14 @@ def main():
 
         qemu = subprocess.Popen(
             [qemu_bin, *boot_args, "-m", "128M", "-display", "none", "-no-reboot",
-             "-monitor", f"unix:{monitor_path},server,nowait"],
+             "-monitor", f"unix:{monitor_path},server,nowait", *args.qemu_arg],
             cwd=tmp, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
 
         monitor = None
         try:
             monitor = Monitor(monitor_path, timeout=10)
 
-            wait_for(monitor, qemu, dump_path, BOOT_DONE, args.timeout)
+            wait_for(monitor, qemu, dump_path, args.boot_done, args.timeout)
             print(f"ok: {args.arch} {'kernel' if args.kernel else 'ISO'} booted")
 
             for command, expect in args.run:

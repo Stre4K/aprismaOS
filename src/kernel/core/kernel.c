@@ -68,8 +68,8 @@ void kernel_main(uint32_t magic, uintptr_t mb_info_phys) {
     pic_init();
     pit_init();
 
-    ps2_controller_init();
-    keyboard_init();
+    if (ps2_controller_init())
+        keyboard_init();
 
 
     // Currently unused
@@ -79,7 +79,16 @@ void kernel_main(uint32_t magic, uintptr_t mb_info_phys) {
 
     enable_interrupts();
 
-    while(1) {
-        __asm__ volatile("hlt");
+    // Main loop: interrupt handlers only queue work; it is processed here
+    // with interrupts enabled, so shell commands never block the timer
+    while (1) {
+        keyboard_process();
+
+        // Sleep until the next interrupt unless input arrived meanwhile
+        disable_interrupts();
+        if (keyboard_has_input())
+            enable_interrupts();
+        else
+            enable_interrupts_and_halt();
     }
 }

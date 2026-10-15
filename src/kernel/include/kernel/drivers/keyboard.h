@@ -40,7 +40,16 @@ static const char scancode_to_ascii_shift[128] = {
 };
 
 
+#include <stdbool.h>
+
 void keyboard_init(void);
+
+// True if scancodes are waiting to be processed
+bool keyboard_has_input(void);
+
+// Decode buffered scancodes and feed them to the shell. Call from the main
+// loop, not from an interrupt handler: it can run whole shell commands.
+void keyboard_process(void);
 
 
 #endif

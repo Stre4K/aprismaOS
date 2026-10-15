@@ -1,6 +1,7 @@
 #ifndef __KERNEL_DRIVERS_PS2_H__
 #define __KERNEL_DRIVERS_PS2_H__
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /* PS/2 ports */
@@ -39,9 +40,22 @@
 #define PS2_RESP_SELF_TEST_PASSED    0x55
 #define PS2_RESP_SELF_TEST_FAILED    0xFC
 
-void ps2_controller_init(void);
-void ps2_write(uint8_t data);
-uint8_t ps2_read(void);
-void ps2_command(uint8_t cmd);
+// All functions give up after a timeout instead of hanging when no
+// controller or device answers
+
+// Set up the controller; returns false if there is none or port 1 failed
+bool ps2_controller_init(void);
+
+// Send a byte to the device on port 1; false on timeout
+bool ps2_write(uint8_t data);
+
+// Wait for and read one byte; -1 on timeout
+int ps2_read(void);
+
+// Send a command to the controller; false on timeout
+bool ps2_command(uint8_t cmd);
+
+// True if a byte is waiting to be read (does not wait)
+bool ps2_has_data(void);
 
 #endif // __KERNEL_DRIVERS_PS2_H__

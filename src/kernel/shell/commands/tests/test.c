@@ -13,6 +13,7 @@
 #include <kernel/printk.h>
 #include <kernel/mm/heap.h>
 #include <kernel/mm/pmm.h>
+#include <kernel/arch/timer.h>
 #include <string.h>
 #include <stdint.h>
 
@@ -126,6 +127,27 @@ static void test_heap(void)
            errors ? "FAILED" : "passed");
 }
 
+// Busy-wait about half a second and check that the PIT kept ticking: shell
+// commands must run with interrupts enabled
+static void test_timer(void)
+{
+    uint64_t start = pit_get_ticks();
+    for (volatile uint32_t spin = 0; spin < 200000000 && pit_get_ticks() - start < 50; spin++)
+        ;
+    uint64_t elapsed = pit_get_ticks() - start;
+    printk("timer test: %llu ticks during the command, %s\n", elapsed,
+           elapsed >= 50 ? "passed" : "FAILED (timer stopped)");
+}
+
+// Print more lines than the scrollback holds; the last ones must still
+// appear in order at the bottom of the screen
+static void test_scroll(void)
+{
+    for (int i = 0; i < 1500; i++)
+        printk("scroll line %d\n", i);
+    printk("scroll test done\n");
+}
+
 void cmd_test(int argc, char **argv)
 {
     if (argc < 2)
@@ -142,6 +164,14 @@ void cmd_test(int argc, char **argv)
     else if (strcmp(argv[1], "printk") == 0)
     {
         printk("printk works!\n");
+    }
+    else if (strcmp(argv[1], "timer") == 0)
+    {
+        test_timer();
+    }
+    else if (strcmp(argv[1], "scroll") == 0)
+    {
+        test_scroll();
     }
     else if (strcmp(argv[1], "heap") == 0)
     {

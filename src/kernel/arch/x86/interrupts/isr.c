@@ -101,10 +101,16 @@ void isr_common_handler(void* regs) {
 * ======================================================== */
 
 void enable_interrupts(void) {
-    asm volatile("sti");
+    asm volatile("sti" ::: "memory");
 }
 void disable_interrupts(void) {
-    asm volatile("cli");
+    asm volatile("cli" ::: "memory");
 }
 
-
+// Enable interrupts and halt until the next one. sti takes effect only
+// after the following instruction, so no interrupt can arrive between the
+// two: a caller that checked for work with interrupts disabled cannot miss
+// a wakeup.
+void enable_interrupts_and_halt(void) {
+    asm volatile("sti; hlt" ::: "memory");
+}
