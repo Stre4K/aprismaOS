@@ -36,6 +36,7 @@ typedef struct thread {
     uintptr_t kstack_top;        // top of the kernel stack (0 for the boot stack)
     uintptr_t space;             // address space, 0 = the kernel's
     struct process *process;     // user process this thread runs, or NULL
+    struct thread *wait_next;    // link in a wait_queue_t while blocked on it
     struct thread *next;         // run queue link
     struct thread *all_next;     // list of all threads
 } thread_t;
@@ -72,6 +73,20 @@ __attribute__((noreturn)) void thread_exit(void);
 // disabled (so a wakeup cannot be missed); returns with them disabled.
 void thread_block(void);
 void thread_unblock(thread_t *t);  // safe from interrupt handlers
+
+// Threads waiting for the same event. A waiter re-checks its condition
+// after waking, so waking more threads than needed is harmless.
+typedef struct {
+    thread_t *head;
+} wait_queue_t;
+
+// Block the current thread on `q`. Call with interrupts disabled, after
+// checking the condition (so a wakeup cannot be missed); returns with them
+// disabled.
+void wait_queue_sleep(wait_queue_t *q);
+
+// Wake every thread on `q` (safe from interrupt handlers)
+void wait_queue_wake_all(wait_queue_t *q);
 
 // Fill `out` with up to `max` threads; returns how many there are
 size_t thread_list(thread_info_t *out, size_t max);
