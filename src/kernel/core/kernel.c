@@ -19,6 +19,8 @@
 #include <kernel/mm/pmm.h>
 #include <kernel/mm/heap.h>
 #include <kernel/sched.h>
+#include <kernel/console.h>
+#include <kernel/shell/shell.h>
 
 // mb_info_phys is the physical address the bootloader passed in EBX
 void kernel_main(uint32_t magic, uintptr_t mb_info_phys) {
@@ -93,11 +95,18 @@ void kernel_main(uint32_t magic, uintptr_t mb_info_phys) {
 
     enable_interrupts();
 
-    // Main loop (the shell): interrupt handlers only queue work; it is
-    // processed here with interrupts enabled, so shell commands never block
-    // the timer. Waiting for input lets other threads run.
+    // The console thread handles the keyboard and line editing; this thread
+    // becomes the shell, running one entered line at a time
+    console_start();
+
+    char line[CONSOLE_LINE_MAX + 1];
     while (1) {
-        keyboard_process();
-        keyboard_wait_for_input();
+        long n = console_read(line, CONSOLE_LINE_MAX);
+        if (n <= 0)
+            continue;  // Ctrl+D at the shell prompt: nothing to do
+        if (line[n - 1] == '\n')
+            n--;
+        line[n] = '\0';
+        shell(line);
     }
 }
