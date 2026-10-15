@@ -26,6 +26,28 @@ static double random_double_bits(void)
     return d;
 }
 
+// Distance in units in the last place between two finite doubles of the
+// same sign (how many representable doubles lie between them)
+static uint64_t ulp_distance(double a, double b)
+{
+    int64_t ia, ib;
+    memcpy(&ia, &a, sizeof(a));
+    memcpy(&ib, &b, sizeof(b));
+    if ((ia < 0) != (ib < 0))
+        return a == b ? 0 : UINT64_MAX;
+    return ia > ib ? (uint64_t)(ia - ib) : (uint64_t)(ib - ia);
+}
+
+// Random positive double spread over the whole exponent range
+static double random_positive_double(void)
+{
+    double d;
+    do {
+        d = fabs(random_double_bits());
+    } while (!isfinite(d) || d == 0);
+    return d;
+}
+
 static int same_double(double a, double b)
 {
     if (isnan(a) || isnan(b))
@@ -129,23 +151,58 @@ TEST(fmod_matches_host_libc)
     }
 }
 
-TEST_KNOWN_BUG(sqrt_basic,
-               "Newton iteration stops at an absolute 1e-5 tolerance, so results are only accurate to ~1e-6")
+TEST(sqrt_basic)
 {
     CHECK_NEAR(aprisma_sqrt(16.0), 4.0, 1e-6);
     CHECK_NEAR(aprisma_sqrt(2.0), 1.41421356237, 1e-6);
 }
 
-TEST_KNOWN_BUG(sqrt_small_values,
-               "sqrt returns x unchanged when x is below the 1e-5 tolerance")
+TEST(sqrt_small_values)
 {
     CHECK_NEAR(aprisma_sqrt(1e-8), 1e-4, 1e-6);
 }
 
-TEST_KNOWN_BUG(sqrt_large_values_terminate,
-               "the absolute tolerance is below one ULP for large x, so the loop never ends")
+TEST(sqrt_large_values_terminate)
 {
     CHECK_NEAR(aprisma_sqrt(2e13 + 7), sqrt(2e13 + 7), 1e-6);
+}
+
+TEST(sqrt_special_values)
+{
+    CHECK(isnan(aprisma_sqrt(-1.0)));
+    CHECK(isnan(aprisma_sqrt(NAN)));
+    CHECK(isinf(aprisma_sqrt(INFINITY)));
+    CHECK(aprisma_sqrt(0.0) == 0.0);
+}
+
+TEST(sqrt_matches_host_libc)
+{
+    for (int i = 0; i < 100000; i++) {
+        double x = random_positive_double();
+        uint64_t ulps = ulp_distance(aprisma_sqrt(x), sqrt(x));
+        if (ulps > 1) {
+            test_fail(__FILE__, __LINE__, "sqrt(%a): host %a, got %a (%llu ulp)",
+                      x, sqrt(x), aprisma_sqrt(x), (unsigned long long)ulps);
+            return;
+        }
+    }
+}
+
+// glibc's cbrt() is itself up to 3 ulp off, so compare with the 80-bit
+// cbrtl() rounded to double instead
+TEST(cbrt_matches_long_double_reference)
+{
+    for (int i = 0; i < 100000; i++) {
+        double x = random_positive_double();
+        if (i % 2) x = -x;
+        double reference = (double)cbrtl((long double)x);
+        uint64_t ulps = ulp_distance(aprisma_cbrt(x), reference);
+        if (ulps > 1) {
+            test_fail(__FILE__, __LINE__, "cbrt(%a): reference %a, got %a (%llu ulp)",
+                      x, reference, aprisma_cbrt(x), (unsigned long long)ulps);
+            return;
+        }
+    }
 }
 
 TEST(cbrt_positive)
@@ -153,8 +210,7 @@ TEST(cbrt_positive)
     CHECK_NEAR(aprisma_cbrt(27.0), 3.0, 1e-6);
 }
 
-TEST_KNOWN_BUG(cbrt_negative,
-               "cbrt does not handle negative input")
+TEST(cbrt_negative)
 {
     CHECK_NEAR(aprisma_cbrt(-8.0), -2.0, 1e-6);
 }
