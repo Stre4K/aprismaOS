@@ -103,10 +103,30 @@ TEST(fmod_positive)
     CHECK_NEAR(aprisma_fmod(7.5, 2.0), 1.5, EPS);
 }
 
-TEST_KNOWN_BUG(fmod_takes_sign_of_dividend,
-               "fmod uses floor(), so the result takes the sign of the divisor")
+TEST(fmod_takes_sign_of_dividend)
 {
     CHECK_NEAR(aprisma_fmod(-5.0, 3.0), -2.0, EPS);
+}
+
+TEST(fmod_special_values)
+{
+    CHECK(isnan(aprisma_fmod(1.0, 0.0)));
+    CHECK(isnan(aprisma_fmod(INFINITY, 2.0)));
+    CHECK_NEAR(aprisma_fmod(5.0, INFINITY), 5.0, 0);
+}
+
+TEST(fmod_matches_host_libc)
+{
+    for (int i = 0; i < 20000; i++) {
+        double x = random_double_bits();
+        double y = (i % 2) ? random_double_bits() : (double)(1 + next_random() % 1000) / 7.0;
+        double ours = aprisma_fmod(x, y);
+        double host = fmod(x, y);
+        if (!same_double(ours, host)) {
+            test_fail(__FILE__, __LINE__, "fmod(%a, %a): host %a, got %a", x, y, host, ours);
+            return;
+        }
+    }
 }
 
 TEST_KNOWN_BUG(sqrt_basic,
