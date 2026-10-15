@@ -32,7 +32,7 @@ KERNEL_OBJS := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(KERNEL_SRCS))
 KERNEL_OBJS := $(patsubst $(SRC_DIR)/%.S,$(OBJ_DIR)/%.o,$(KERNEL_OBJS))
 
 BIN := aprisma.kernel
-LIBC_A := $(SYSROOT)/lib/libc.a
+LIBK_A := $(SYSROOT)/lib/libk.a
 
 .PHONY: all clean install install-headers install-kernel
 
@@ -48,13 +48,13 @@ RESET := \033[0m
 # -------------------------
 # Build kernel
 # -------------------------
-$(BIN): $(KERNEL_OBJS) $(ARCHDIR)/linker.ld $(LIBC_A)
+$(BIN): $(KERNEL_OBJS) $(ARCHDIR)/linker.ld $(LIBK_A)
 	@mkdir -p $(dir $@)
 	@$(CC) -nostdlib -ffreestanding \
 		-T $(ARCHDIR)/linker.ld \
 		-o $@ \
 		$(KERNEL_OBJS) \
-		$(LIBC_A) \
+		$(LIBK_A) \
 		-lgcc \
 		$(LIBS)
 	@echo "$(GREEN_BOLD)[kernel] Kernel done compiling!$(RESET)"

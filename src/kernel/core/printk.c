@@ -1,21 +1,36 @@
+#include <kernel/drivers/vga.h>
 #include <kernel/drivers/tty.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 
-static void print_char(char c) { terminal_putchar(c); }
 
-static void print_string(const char *s) {
-    while (*s) terminal_putchar(*s++);
+// ----------------- Character and String Printing -----------------
+static inline void print_char(char c) {
+    terminal_putchar(c);
 }
 
+static inline void print_string(const char *s) {
+
+    if (!s) {
+        s = "(null)";
+    }
+
+    while (*s) {
+        terminal_putchar(*s++);
+    }
+}
+
+
+// ----------------- Integer Printing -----------------
 static void print_uint64(uint64_t num, int base, bool uppercase) {
     char buf[32];
     const char *digits = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
     int i = 0;
 
     if (num == 0) {
-        terminal_putchar('0');
+        print_char('0');
         return;
     }
 
@@ -23,7 +38,8 @@ static void print_uint64(uint64_t num, int base, bool uppercase) {
         buf[i++] = digits[num % base];
         num /= base;
     }
-    while (i > 0) terminal_putchar(buf[--i]);
+
+    while (i > 0) print_char(buf[--i]);
 }
 
 static void print_uint32(uint32_t num, int base, bool uppercase) {
@@ -32,26 +48,29 @@ static void print_uint32(uint32_t num, int base, bool uppercase) {
 
 static void print_int32(int32_t num) {
     if (num < 0) {
-        terminal_putchar('-');
+        print_char('-');
         num = -num;
     }
     print_uint32((uint32_t)num, 10, false);
 }
 
+// ----------------- Optimized printk -----------------
 void printk(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
+
+    terminal_set_defer_render(true); // batch all output
 
     while (*fmt) {
         if (*fmt == '%') {
             fmt++;
             bool long_long = false;
 
-            // 1️⃣ Skip zero-padding / field width
+            // Skip zero-padding / width
             if (*fmt == '0') fmt++;
             while (*fmt >= '0' && *fmt <= '9') fmt++;
 
-            // 2️⃣ Handle 'l' and 'll'
+            // Handle 'l' and 'll'
             if (*fmt == 'l') {
                 fmt++;
                 if (*fmt == 'l') {
@@ -121,5 +140,7 @@ void printk(const char *fmt, ...) {
         fmt++;
     }
 
+    terminal_set_defer_render(false);
+    terminal_render(); // render all output at once
     va_end(args);
 }

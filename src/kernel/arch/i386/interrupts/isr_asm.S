@@ -46,7 +46,7 @@
  *   call isr_common_handler
  *   addl $8, %esp
  *   popa
- *   addl $4, %esp    ; remove the int_no we pushed earlier; leave CPU error_code in place for iret
+ *   addl $8, %esp    ; remove int_no and the CPU error_code; iret must not see it
  *   sti
  *   iret
  */
@@ -92,7 +92,7 @@ isr##n:                         \
     pusha;                    /* save registers */ \
     call isr_common_entry;      \
     popa;                     /* restore registers */ \
-    addl $4, %esp;              /* cleanup int_no */ \
+    addl $8, %esp;              /* cleanup int_no + CPU error code */ \
     sti;                      \
     iret;                     \
 

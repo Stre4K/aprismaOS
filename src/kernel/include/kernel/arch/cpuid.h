@@ -153,6 +153,7 @@ static const cpu_vendor_t cpu_vendors[] = {
 #define bit_RDRND	(1 << 30)
 
 /* %edx */
+#define bit_PAE     (1 << 6)
 #define bit_CMPXCHG8B	(1 << 8)
 #define bit_APIC        (1 << 9)
 #define bit_CMOV	(1 << 15)

@@ -38,6 +38,14 @@ SECTIONS
 		*(.bss)
 	}
 
+    /* Shell command table */
+    .shell_commands BLOCK(4K) : ALIGN(4K)
+    {
+        __start_shell_commands = .;
+        KEEP(*(.shell_commands*))
+        __stop_shell_commands = .;
+    }
+
 	/* The compiler may produce other sections, put them in the proper place in
 	   in this file, if you'd like to include them in the final kernel. */
     /* ---- Add signature section ---- */
@@ -45,4 +53,9 @@ SECTIONS
     {
         KEEP(*(.signature))
     }
+
+    /* mark kernel end: must stay after the last loaded section so the PMM
+       never hands out pages that belong to the kernel image */
+    . = ALIGN(4K);
+    kernel_end = .;
 }

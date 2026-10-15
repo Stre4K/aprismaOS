@@ -4,10 +4,11 @@
 // Date: 2026-03-06
 
 
-int shell_parse(char *line, char **argv) {
+int shell_parse(char *line, char **argv, int max_args) {
     int argc = 0;
 
-    while (*line) {
+    // Leave room for the NULL terminator; extra tokens are ignored
+    while (*line && argc < max_args - 1) {
         while (*line == ' ') line++;
         if (*line == 0) break;
 
@@ -17,6 +18,7 @@ int shell_parse(char *line, char **argv) {
         if (*line) *line++ = 0;
     }
 
+    argv[argc] = 0;
     return argc;
 }
 
