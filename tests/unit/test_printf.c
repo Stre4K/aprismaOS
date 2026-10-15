@@ -5,7 +5,9 @@
 #include "test.h"
 
 #include <limits.h>
+#include <stdbool.h>
 #include <math.h>
+#include <stdio.h>
 
 // Run printf and check the exact bytes it printed and its return value
 #define CHECK_PRINTF(expected, ...)                                           \
@@ -127,11 +129,131 @@ TEST(printf_float_special_values)
     CHECK_PRINTF("inf -inf nan", "%f %f %f", HUGE_VAL, -HUGE_VAL, NAN);
 }
 
-TEST_KNOWN_BUG(printf_width_and_zero_padding,
-               "width and flags are not parsed, so later arguments shift")
+TEST(printf_width_and_zero_padding)
 {
     // Unsupported flags must at least not shift the remaining arguments
     CHECK_PRINTF("000000ff|7", "%08x|%d", 255, 7);
+}
+
+TEST(printf_width_aligns_right_and_left)
+{
+    CHECK_PRINTF("[   42][42   ]", "[%5d][%-5d]", 42, 42);
+    CHECK_PRINTF("[    ab][ab    ]", "[%6s][%-6s]", "ab", "ab");
+    CHECK_PRINTF("[  x]", "[%3c]", 'x');
+    CHECK_PRINTF("[toolong]", "[%3s]", "toolong");  // width is a minimum
+}
+
+TEST(printf_zero_padding_goes_after_the_sign)
+{
+    CHECK_PRINTF("-0042", "%05d", -42);
+    CHECK_PRINTF("-42  ", "%-05d", -42);  // '-' overrides '0'
+}
+
+TEST(printf_plus_and_space_flags)
+{
+    CHECK_PRINTF("+5 -5  5", "%+d %+d % d", 5, -5, 5);
+}
+
+TEST(printf_alternate_form)
+{
+    CHECK_PRINTF("0xff 0XFF 0 010", "%#x %#X %#x %#o", 255, 255, 0, 8);
+}
+
+TEST(printf_octal)
+{
+    CHECK_PRINTF("10 377", "%o %o", 8, 255);
+}
+
+TEST(printf_star_width)
+{
+    CHECK_PRINTF("   7|7   |7   ", "%*d|%-*d|%*d", 4, 7, 4, 7, -4, 7);
+}
+
+TEST(printf_precision)
+{
+    CHECK_PRINTF("3.14 3 2.718282", "%.2f %.0f %f", 3.14159, 2.7, 2.718281828);
+    CHECK_PRINTF("abc", "%.3s", "abcdef");
+    CHECK_PRINTF("00042 -00042", "%.5d %.5d", 42, -42);
+    CHECK_PRINTF("   00042", "%08.5d", 42);  // precision disables zero padding
+    CHECK_PRINTF("", "%.0d", 0);             // zero with precision 0 has no digits
+}
+
+TEST(printf_float_width_and_sign)
+{
+    CHECK_PRINTF("  1.50|-01.50|+1.500000", "%6.2f|%06.2f|%+f", 1.5, -1.5, 1.5);
+    CHECK_PRINTF("   inf", "%06f", HUGE_VAL);  // no zero padding for inf/nan
+}
+
+TEST(printf_length_modifiers)
+{
+    CHECK_PRINTF("-5 -9000000000", "%ld %lld", -5L, -9000000000LL);
+    CHECK_PRINTF("18446744073709551615 123456789abcdef", "%llu %llx",
+                 18446744073709551615ULL, 0x123456789abcdefULL);
+    CHECK_PRINTF("42 44 4464", "%zu %hhd %hd", (size_t)42, 300, 70000);
+}
+
+TEST(printf_pointer_with_width)
+{
+    CHECK_PRINTF("[  0x1f]", "[%6p]", (void *)0x1f);
+}
+
+// Compare against the host C library on random integer conversions with
+// random flags, width, precision and length (deterministic seed)
+TEST(printf_integers_match_host_libc)
+{
+    static const char *const conversions = "diuoxX";
+    static const char *const lengths[] = { "", "hh", "h", "l", "ll", "z" };
+    unsigned long long seed = 0x9E3779B97F4A7C15ULL;
+
+    for (int i = 0; i < 5000; i++) {
+        seed = seed * 6364136223846793005ULL + 1442695040888963407ULL;
+        unsigned long long r = seed;
+
+        char conversion = conversions[r % 6];
+        const char *length = lengths[(r >> 3) % 6];
+        bool is_signed = conversion == 'd' || conversion == 'i';
+
+        char format[32];
+        size_t n = 0;
+        format[n++] = '%';
+        if (r & (1ULL << 6)) format[n++] = '-';
+        if (r & (1ULL << 7)) format[n++] = '0';
+        if (r & (1ULL << 8)) format[n++] = '+';
+        if (r & (1ULL << 9)) format[n++] = ' ';
+        if ((r & (1ULL << 10)) && !is_signed && conversion != 'u') format[n++] = '#';
+        if (r & (1ULL << 11)) n += sprintf(format + n, "%d", (int)((r >> 12) % 13));
+        if (r & (1ULL << 16)) n += sprintf(format + n, ".%d", (int)((r >> 17) % 11));
+        n += sprintf(format + n, "%s%c", length, conversion);
+
+        // Mix small, boundary and random values
+        seed = seed * 6364136223846793005ULL + 1442695040888963407ULL;
+        unsigned long long value = seed;
+        switch ((r >> 21) % 4) {
+            case 0: value %= 1000; break;
+            case 1: value = (r >> 23) % 2 ? 0 : (unsigned long long)-1; break;
+            case 2: value = (unsigned long long)(long long)(int)value; break;
+            default: break;
+        }
+
+        char expected[128];
+        capture_reset();
+        if (!strcmp(length, "l") || !strcmp(length, "z")) {
+            snprintf(expected, sizeof(expected), format, (long)value);
+            aprisma_printf(format, (long)value);
+        } else if (!strcmp(length, "ll")) {
+            snprintf(expected, sizeof(expected), format, (long long)value);
+            aprisma_printf(format, (long long)value);
+        } else {
+            snprintf(expected, sizeof(expected), format, (int)value);
+            aprisma_printf(format, (int)value);
+        }
+
+        if (strcmp(capture_text(), expected) != 0) {
+            test_fail(__FILE__, __LINE__, "format \"%s\" value %llu: host printed \"%s\", got \"%s\"",
+                      format, value, expected, capture_text());
+            return;
+        }
+    }
 }
 
 TEST(puts_appends_newline)
