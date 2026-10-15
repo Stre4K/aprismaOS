@@ -1,4 +1,5 @@
 #include <kernel/shell/cmdline.h>
+#include <kernel/drivers/serial.h>
 #include <kernel/drivers/tty.h>
 #include <kernel/printk.h>
 #include <string.h>
@@ -24,6 +25,10 @@ void cmdline_input_char(char c) {
     terminal_scroll_to_bottom();
 
     if (c == '\n') {
+        // The line is drawn straight into the terminal, not through printk,
+        // so echo it to the serial log to show which command ran
+        serial_write(cmdline_buffer);
+        serial_putchar('\n');
         terminal_putchar('\n');
         cmdline_buffer[cmdline_length] = '\0';
         shell(cmdline_buffer);
