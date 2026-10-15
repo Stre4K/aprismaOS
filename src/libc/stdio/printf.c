@@ -141,6 +141,18 @@ int printf(const char *restrict format, ...) {
 
         format++;  // Move past '%'
 
+        // A lone '%' at the end: print it and stop instead of reading past
+        // the terminator
+        if (*format == '\0') {
+            if (maxrem < 1) {
+                errno = EOVERFLOW;
+                return -1;
+            }
+            if (!print("%", 1)) return -1;
+            written++;
+            break;
+        }
+
         switch (*format) {
             case 'c': {  // Character
                 char c = (char)va_arg(parameters, int);

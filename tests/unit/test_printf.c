@@ -80,8 +80,7 @@ TEST(printf_unknown_specifier_is_printed)
     CHECK_PRINTF("%q", "%q");
 }
 
-TEST_KNOWN_BUG(printf_trailing_percent,
-               "a '%' at the end prints the NUL and keeps reading past the format string")
+TEST(printf_trailing_percent)
 {
     // The format must not be read past its terminator. The buffer after the
     // NUL holds text that must never show up in the output.
