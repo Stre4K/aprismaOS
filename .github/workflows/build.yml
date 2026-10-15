@@ -291,9 +291,21 @@ jobs:
           fi
           python3 scripts/qemu_boot_test.py --arch ${{ matrix.arch }} $IMAGE --timeout 120 \
             --run "test heap" "heap test: peak heap [0-9]+ KB, passed" \
+            --run "test timer" "timer test: [0-9]+ ticks during the command, passed" \
+            --run "test scroll" "scroll line 1499\nscroll test done" \
             --run "version" "AprismaOS v[^ ]+ \(${{ matrix.arch == 'x86_64' && 'x86_64' || 'i686' }}\)"
 
-          # Optional: Quick disk image metadata check (works for both ISO and kernel images)
+      # Booting must not hang when there is no keyboard controller. Kernels
+      # only: GRUB's menu itself needs a keyboard to continue.
+      - name: Boot test without PS/2 controller ${{ matrix.artifact }}
+        if: ${{ !matrix.is_iso }}
+        run: |
+          python3 scripts/qemu_boot_test.py --arch ${{ matrix.arch }} \
+            --kernel ${{ matrix.artifact }}/aprisma.kernel --timeout 120 \
+            --qemu-arg=-machine --qemu-arg=pc,i8042=off \
+            --boot-done "No PS/2 controller found"
+
+      # Optional: Quick disk image metadata check (works for both ISO and kernel images)
       - name: Inspect disk/image metadata
         run: |
           FILE=${{ matrix.is_iso && format('{0}/aprisma.iso', matrix.artifact) || format('{0}/aprisma.kernel', matrix.artifact) }}
