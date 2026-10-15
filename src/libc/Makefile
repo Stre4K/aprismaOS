@@ -106,12 +106,12 @@ install: install-headers install-libs
 #	@echo -e "$(YELLOW)[install] Copying headers...$(RESET)"
 #	mkdir -p $(SYSROOT)/include
 #	cp -R -p $(SRC_DIR)/include/. $(SYSROOT)/include/
+# Copy on every build so header edits reach the sysroot (cp -p keeps the
+# timestamps, so unchanged headers do not trigger rebuilds)
 install-headers:
-	@if [ ! -d $(SYSROOT)/include ]; then \
-		echo "$(YELLOW)[libc] Copying headers$(RESET)"; \
-		mkdir -p $(SYSROOT)/include; \
-		cp -R -p $(SRC_DIR)/include/. $(SYSROOT)/include/; \
-	fi
+	@echo "$(YELLOW)[libc] Copying headers$(RESET)"
+	@mkdir -p $(SYSROOT)/include
+	@cp -R -p $(SRC_DIR)/include/. $(SYSROOT)/include/
 
 install-libs: $(BINARIES)
 	@echo "$(YELLOW)[install] Copying libraries$(RESET)"
