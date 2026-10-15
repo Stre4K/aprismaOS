@@ -39,6 +39,17 @@ void unregister_irq_handler(int irq) {
 
 
 
+static const char *exception_names[32] = {
+    "Divide error", "Debug", "Non-maskable interrupt", "Breakpoint",
+    "Overflow", "Bound range exceeded", "Invalid opcode", "Device not available",
+    "Double fault", "Coprocessor segment overrun", "Invalid TSS", "Segment not present",
+    "Stack-segment fault", "General protection fault", "Page fault", "Reserved",
+    "x87 floating-point exception", "Alignment check", "Machine check", "SIMD floating-point exception",
+    "Virtualization exception", "Control protection exception", "Reserved", "Reserved",
+    "Reserved", "Reserved", "Reserved", "Reserved",
+    "Hypervisor injection exception", "VMM communication exception", "Security exception", "Reserved",
+};
+
 /* ========================================================
  * Interrupt common handler - called from assembly isr_asm.S
  * ======================================================== */
@@ -57,8 +68,9 @@ void isr_common_handler(void* regs) {
             return;
         }
 
-        printk("Unhandled CPU exception: %d\n", int_no);
-        for(;;) asm volatile("hlt");
+        printk("Unhandled CPU exception %d: %s\n", int_no, exception_names[int_no]);
+        regs_dump(r);
+        for(;;) asm volatile("cli; hlt");
     }
 
     /* Hardware IRQs */
