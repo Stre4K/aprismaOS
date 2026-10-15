@@ -15,7 +15,7 @@ extern shell_command_t __stop_shell_commands;
 void shell(char *cmdline_buffer)
 {
     char *argv[SHELL_MAX_ARGS];
-    int argc = shell_parse(cmdline_buffer, argv);
+    int argc = shell_parse(cmdline_buffer, argv, SHELL_MAX_ARGS);
 
     if (argc == 0)
         return;

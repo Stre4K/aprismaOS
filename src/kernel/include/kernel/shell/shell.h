@@ -14,7 +14,7 @@
 #define SHELL_MAX_ARGS 16
 
 void shell(char *cmdline_buffer);
-int shell_parse(char *line, char **argv);
+int shell_parse(char *line, char **argv, int max_args);
 
 int shell_register_command(const char *name, const char *description, void (*func)(int, char**));
 
