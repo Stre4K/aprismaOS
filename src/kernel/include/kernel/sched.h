@@ -1,9 +1,10 @@
 // sched.h
 // Kernel threads and the preemptive round-robin scheduler
 //
-// Only built where the architecture defines CONFIG_SCHED (x86_64 for now).
+// Built where the architecture defines CONFIG_SCHED (i386 and x86_64).
 // Elsewhere the preemption calls below are no-ops so shared code can use
-// them unconditionally.
+// them unconditionally; a new arch needs arch/<arch>/sched (context
+// switch and initial stack) and KSTACK_* in its memlayout.h.
 
 #ifndef __KERNEL_SCHED_H__
 #define __KERNEL_SCHED_H__

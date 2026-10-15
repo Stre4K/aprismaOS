@@ -280,7 +280,13 @@ static int stack_eater(int depth)
 static void overflow_thread(void *arg)
 {
     (void)arg;
+#if defined(__x86_64__)
     printk("stack overflow test: recursing, expect a double fault\n");
+#else
+    // i386 has no Interrupt Stack Table: the double fault handler would
+    // need the overflowed stack too, so the CPU resets (triple fault)
+    printk("stack overflow test: recursing, expect a reset (triple fault) on i386\n");
+#endif
     stack_eater(1000000);
 }
 #endif // CONFIG_SCHED
