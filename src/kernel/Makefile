@@ -25,13 +25,10 @@ LDFLAGS  += $(KERNEL_ARCH_LDFLAGS)
 LIBS     += $(KERNEL_ARCH_LIBS)
 
 # Kernel sources and objects
-# Generic sources are everything outside arch/. An arch can limit them with
-# KERNEL_GENERIC_SRCS in its make.config (used while a port is in progress).
-ifdef KERNEL_GENERIC_SRCS
-GENERIC_SRCS := $(addprefix $(SRC_DIR)/,$(KERNEL_GENERIC_SRCS))
-else
+# Generic sources are everything outside arch/. An arch can leave some out
+# with KERNEL_GENERIC_EXCLUDE in its make.config while a port is in progress.
 GENERIC_SRCS := $(shell find $(SRC_DIR) -path $(SRC_DIR)/arch -prune -o \( -name '*.c' -o -name '*.S' \) -print)
-endif
+GENERIC_SRCS := $(filter-out $(addprefix $(SRC_DIR)/,$(KERNEL_GENERIC_EXCLUDE)),$(GENERIC_SRCS))
 # KERNEL_ARCH_DIRS lists code shared between architectures (e.g. arch/x86)
 ARCH_DIRS    := $(ARCHDIR) $(addprefix $(SRC_DIR)/,$(KERNEL_ARCH_DIRS))
 ARCH_SRCS    := $(shell find $(ARCH_DIRS) -name '*.c' -o -name '*.S')

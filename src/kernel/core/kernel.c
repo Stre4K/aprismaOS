@@ -7,15 +7,12 @@
 #include <kernel/arch/isr.h>
 #include <kernel/arch/pic.h>
 #include <kernel/arch/timer.h>
+#include <kernel/arch/cpuid.h>
+#include <kernel/drivers/keyboard.h>
+#include <kernel/drivers/ps2.h>
 
 // Subsystems not yet ported to x86_64 stay i386-only until their port lands
 #if defined(__i386__)
-#include <kernel/arch/cpuid.h>
-#include <kernel/arch/lapic.h>
-#include <kernel/arch/portio.h>
-#include <kernel/drivers/keyboard.h>
-#include <kernel/drivers/ps2.h>
-#include <kernel/shell/commands.h>
 #include <kernel/mm/fault.h>
 #include <kernel/mm/paging.h>
 #include <kernel/mm/pmm.h>
@@ -62,21 +59,18 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
 
     kheap_init();
     printk("[HEAP] Initialized\n");
-
+#endif
 
     if (cpuid_supported_check()) {
         cpuid_init();
         printk("[CPUID] Loaded\n");
     }
-#endif
 
     pic_init();
     pit_init();
 
-#if defined(__i386__)
     ps2_controller_init();
     keyboard_init();
-#endif
 
 
     // Currently unused
@@ -87,8 +81,7 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     enable_interrupts();
 
 #if defined(__x86_64__)
-    // TODO(x86_64): port memory management, keyboard and the shell
-    printk("[x86_64] Interrupts enabled\n");
+    // TODO(x86_64): port memory management
 #endif
 
     while(1) {

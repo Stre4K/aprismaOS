@@ -11,12 +11,16 @@
 #include <kernel/shell/commands.h>
 
 #include <kernel/printk.h>
+// TODO(x86_64): drop the guards once the heap is ported
+#if defined(__i386__)
 #include <kernel/mm/heap.h>
 #include <kernel/mm/pmm.h>
+#endif
 #include <string.h>
 #include <stdint.h>
 
 
+#if defined(__i386__)
 #define HEAP_TEST_SLOTS 64
 
 // Random alloc/realloc/free mix that checks contents and heap invariants,
@@ -125,6 +129,7 @@ static void test_heap(void)
     printk("heap test: peak heap %u KB, %s\n", (uint32_t)(peak.heap_size / 1024),
            errors ? "FAILED" : "passed");
 }
+#endif
 
 void cmd_test(int argc, char **argv)
 {
@@ -143,10 +148,12 @@ void cmd_test(int argc, char **argv)
     {
         printk("printk works!\n");
     }
+#if defined(__i386__)
     else if (strcmp(argv[1], "heap") == 0)
     {
         test_heap();
     }
+#endif
     else if (strcmp(argv[1], "pagefault") == 0)
     {
         volatile uint32_t *ptr = (uint32_t*)0xDEADBEEF;
