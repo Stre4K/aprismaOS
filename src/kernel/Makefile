@@ -15,7 +15,7 @@ ARCHDIR ?= $(SRC_DIR)/arch/$(HOSTARCH)
 SYSROOT ?= $(SYSROOT)
 
 CFLAGS   := $(CFLAGS) -ffreestanding -Wall -Wextra -nostdlib -nostdinc -Werror
-CPPFLAGS := $(CPPFLAGS) -D__is_kernel -Iinclude -I$(SYSROOT)/include
+CPPFLAGS := $(CPPFLAGS) -D__is_kernel -I$(ARCHDIR)/include -Iinclude -I$(SYSROOT)/include
 
 include $(ARCHDIR)/make.config
 
@@ -32,7 +32,9 @@ GENERIC_SRCS := $(addprefix $(SRC_DIR)/,$(KERNEL_GENERIC_SRCS))
 else
 GENERIC_SRCS := $(shell find $(SRC_DIR) -path $(SRC_DIR)/arch -prune -o \( -name '*.c' -o -name '*.S' \) -print)
 endif
-ARCH_SRCS    := $(shell find $(ARCHDIR) -name '*.c' -o -name '*.S')
+# KERNEL_ARCH_DIRS lists code shared between architectures (e.g. arch/x86)
+ARCH_DIRS    := $(ARCHDIR) $(addprefix $(SRC_DIR)/,$(KERNEL_ARCH_DIRS))
+ARCH_SRCS    := $(shell find $(ARCH_DIRS) -name '*.c' -o -name '*.S')
 KERNEL_SRCS  := $(GENERIC_SRCS) $(ARCH_SRCS)
 KERNEL_OBJS := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(KERNEL_SRCS))
 KERNEL_OBJS := $(patsubst $(SRC_DIR)/%.S,$(OBJ_DIR)/%.o,$(KERNEL_OBJS))
