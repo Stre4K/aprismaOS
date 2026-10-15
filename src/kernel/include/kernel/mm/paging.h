@@ -1,20 +1,24 @@
 // paging.h
-// Author: Stre4k
+// Author: Stre4K
 // Date: 2026-03-08
-
+//
+// Arch-independent paging API, implemented in arch/<arch>/mm/paging.c
 
 #ifndef __KERNEL_MM_PAGING_H__
 #define __KERNEL_MM_PAGING_H__
 
 #include <stdint.h>
 
-extern uint32_t page_directory[1024];
-
+// Build the kernel's page tables and switch to them
 void paging_init(void);
-void enable_paging(uint32_t *pd);
-void map_page(uint32_t virt, uint32_t phys);
-uint32_t unmap_page(uint32_t virt);
-uint32_t virt_to_phys(uint32_t virt);
 
+// Map one 4 KiB page (read/write, kernel only)
+void map_page(uintptr_t virt, uintptr_t phys);
+
+// Remove a 4 KiB mapping; returns the physical page that was mapped (0 if none)
+uintptr_t unmap_page(uintptr_t virt);
+
+// Physical address behind a virtual address (0 if unmapped)
+uintptr_t virt_to_phys(uintptr_t virt);
 
 #endif // __KERNEL_MM_PAGING_H__

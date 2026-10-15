@@ -3,6 +3,7 @@
 // Author: Stre4K
 // Date: 2026-03-08
 
+#include <kernel/mm/paging.h>
 #include <kernel/mm/pmm.h>
 #include <kernel/panic.h>
 #include <stdint.h>
@@ -24,6 +25,8 @@
 #define PAGE_GLOBAL   (1 << 8)   // Global page. TLB entries not flushed on context switch if CR4.PGE = 1.
 
 
+static void enable_paging(uint32_t *pd);
+
 uint32_t page_directory[1024] __attribute__((aligned(4096)));
 uint32_t first_page_table[1024] __attribute__((aligned(4096)));
 
@@ -39,10 +42,12 @@ void paging_init()
 
     // Recursive mapping
     page_directory[1023] = ((uint32_t)page_directory) | PAGE_PRESENT | PAGE_RW;
+
+    enable_paging(page_directory);
 }
 
 
-void enable_paging(uint32_t *pd)
+static void enable_paging(uint32_t *pd)
 {
     asm volatile("mov %0, %%cr3" :: "r"(pd) : "memory");
 
@@ -68,7 +73,7 @@ static int paging_enabled(void)
 
 // Map one 4K page. Only valid once paging is on, since it edits the
 // page tables through the recursive mapping at 0xFFC00000.
-void map_page(uint32_t virt, uint32_t phys)
+void map_page(uintptr_t virt, uintptr_t phys)
 {
     uint32_t dir = virt >> 22;
     uint32_t table = (virt >> 12) & 0x3FF;
@@ -102,7 +107,7 @@ void map_page(uint32_t virt, uint32_t phys)
 
 // Remove the mapping for one 4K page. Returns the physical address that was
 // mapped there (0 if nothing was), so the caller can give it back to the PMM.
-uint32_t unmap_page(uint32_t virt)
+uintptr_t unmap_page(uintptr_t virt)
 {
     uint32_t dir = virt >> 22;
     uint32_t table = (virt >> 12) & 0x3FF;
@@ -126,7 +131,7 @@ uint32_t unmap_page(uint32_t virt)
 }
 
 // Look up the physical address a virtual address maps to (0 if unmapped)
-uint32_t virt_to_phys(uint32_t virt)
+uintptr_t virt_to_phys(uintptr_t virt)
 {
     uint32_t dir = virt >> 22;
     uint32_t table = (virt >> 12) & 0x3FF;

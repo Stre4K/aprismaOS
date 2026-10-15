@@ -11,16 +11,17 @@
 #include <kernel/drivers/keyboard.h>
 #include <kernel/drivers/ps2.h>
 
-// Subsystems not yet ported to x86_64 stay i386-only until their port lands
-#if defined(__i386__)
+#include <kernel/arch/memlayout.h>
 #include <kernel/mm/fault.h>
 #include <kernel/mm/paging.h>
 #include <kernel/mm/pmm.h>
 #include <kernel/mm/heap.h>
-#endif
 
-void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
+// mb_info_phys is the physical address the bootloader passed in EBX
+void kernel_main(uint32_t magic, uintptr_t mb_info_phys) {
     disable_interrupts();
+
+    multiboot_info_t *mb_info_ptr = P2V(mb_info_phys);
 
     terminal_initialize();
 
@@ -49,17 +50,15 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     init_idt();
     printk("[IDT] Loaded\n");
 
-#if defined(__i386__)
     register_isr_handler(14, page_fault_handler);
 
     memory_map_detect(mb_info_ptr);
     pmm_init(mb_info_ptr);
     paging_init();
-    enable_paging(page_directory);
+    printk("[PAGING] Enabled\n");
 
     kheap_init();
     printk("[HEAP] Initialized\n");
-#endif
 
     if (cpuid_supported_check()) {
         cpuid_init();
@@ -79,10 +78,6 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     //lapic_keyboard_init();
 
     enable_interrupts();
-
-#if defined(__x86_64__)
-    // TODO(x86_64): port memory management
-#endif
 
     while(1) {
         __asm__ volatile("hlt");
