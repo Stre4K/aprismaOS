@@ -126,6 +126,15 @@ static void test_heap(void)
            errors ? "FAILED" : "passed");
 }
 
+// Print more lines than the scrollback holds; the last ones must still
+// appear in order at the bottom of the screen
+static void test_scroll(void)
+{
+    for (int i = 0; i < 1500; i++)
+        printk("scroll line %d\n", i);
+    printk("scroll test done\n");
+}
+
 void cmd_test(int argc, char **argv)
 {
     if (argc < 2)
@@ -142,6 +151,10 @@ void cmd_test(int argc, char **argv)
     else if (strcmp(argv[1], "printk") == 0)
     {
         printk("printk works!\n");
+    }
+    else if (strcmp(argv[1], "scroll") == 0)
+    {
+        test_scroll();
     }
     else if (strcmp(argv[1], "heap") == 0)
     {

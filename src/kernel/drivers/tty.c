@@ -16,11 +16,23 @@ static size_t terminal_column;
 static uint8_t terminal_color;
 static uint16_t *terminal_buffer;
 
-/* Scrollback history */
-#define TERM_HISTORY 1000
+/* Scrollback history: a ring of TERM_HISTORY lines. history_head and
+   history_view are logical line numbers that only grow; history_line()
+   maps them onto the ring, so the oldest lines are overwritten instead of
+   the screen freezing once the buffer is full. */
+#define TERM_HISTORY 1024  // power of two, so the line numbers can wrap freely
 static uint16_t terminal_history[TERM_HISTORY][VGA_WIDTH];
-static size_t history_head = 0;
-static size_t history_view = 0;
+static size_t history_head = 0;  // logical line the cursor's row is on
+static size_t history_view = 0;  // logical line shown in the top screen row
+
+static uint16_t *history_line(size_t line) {
+    return terminal_history[line % TERM_HISTORY];
+}
+
+// Oldest logical line still in the ring
+static size_t history_oldest(void) {
+    return history_head >= TERM_HISTORY ? history_head - (TERM_HISTORY - 1) : 0;
+}
 
 
 // ================================================================
@@ -115,12 +127,9 @@ static void terminal_render_range(size_t start_row, size_t end_row) {
     if (!terminal_buffer) return;
 
     for (size_t y = start_row; y < end_row && y < VGA_HEIGHT; y++) {
-        size_t hist_row = history_view + y;
-        if (hist_row >= TERM_HISTORY) break;
-
         // Use memcpy instead of nested loop
         memcpy(&terminal_buffer[y * VGA_WIDTH],
-               &terminal_history[hist_row],
+               history_line(history_view + y),
                VGA_WIDTH * sizeof(uint16_t));
     }
 }
@@ -146,15 +155,9 @@ void terminal_set_defer_render(bool defer) {
 
 
 void terminal_putentryat(unsigned char c, uint8_t color, size_t x, size_t y) {
-    //size_t hist_row = history_head - terminal_row + y;
-    size_t hist_row = history_view + y;
+    if (x >= VGA_WIDTH || y >= VGA_HEIGHT) return;
 
-    if (hist_row >= TERM_HISTORY)
-        return;
-
-    if (x >= VGA_WIDTH) return;
-
-    terminal_history[hist_row][x] = vga_entry(c, color);
+    history_line(history_view + y)[x] = vga_entry(c, color);
 }
 
 
@@ -166,13 +169,10 @@ void terminal_newline(void) {
         terminal_row = VGA_HEIGHT - 1;
 
         history_head++;
-
-        if (history_head >= TERM_HISTORY)
-            history_head = TERM_HISTORY - 1;
-
         history_view = history_head - (VGA_HEIGHT - 1);
 
-        memset(terminal_history[history_head], 0,
+        // The new line reuses the oldest slot in the ring
+        memset(history_line(history_head), 0,
                VGA_WIDTH * sizeof(uint16_t));
     }
 
@@ -229,14 +229,12 @@ void terminal_writestring(const char *data) {
 
 
 void terminal_clear_line(const size_t row) {
-    size_t hist_row = history_view + row;
-
-    if (hist_row >= TERM_HISTORY)
+    if (row >= VGA_HEIGHT)
         return;
 
+    uint16_t *line = history_line(history_view + row);
     for (size_t x = 0; x < VGA_WIDTH; x++)
-        terminal_history[hist_row][x] =
-            vga_entry(' ', terminal_color);
+        line[x] = vga_entry(' ', terminal_color);
 }
 
 void terminal_clear_screen(void) {
@@ -247,7 +245,7 @@ void terminal_clear_screen(void) {
 }
 
 void terminal_scroll_up(void) {
-    if (history_view > 0) {
+    if (history_view > history_oldest()) {
         history_view--;
         terminal_render();
         vga_disable_cursor();
@@ -292,7 +290,7 @@ void terminal_scroll_to_bottom(void)
 
 void terminal_scroll_to_top(void)
 {
-    history_view = 0;
+    history_view = history_oldest();
     terminal_render();
 
     vga_enable_cursor();
