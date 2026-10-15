@@ -222,8 +222,7 @@ TEST(pow_integer_exponents)
     CHECK_NEAR(aprisma_pow(5.0, 0.0), 1.0, EPS);
 }
 
-TEST_KNOWN_BUG(pow_fractional_exponent,
-               "computes exp(base * log(exponent)) instead of exp(exponent * log(base))")
+TEST(pow_fractional_exponent)
 {
     CHECK_NEAR(aprisma_pow(2.0, 0.5), 1.41421356237, 1e-6);
     CHECK_NEAR(aprisma_pow(9.0, 1.5), 27.0, 1e-6);
@@ -345,6 +344,41 @@ TEST(log_matches_long_double_reference)
         if (ulps > 1) {
             test_fail(__FILE__, __LINE__, "log(%a): reference %a, got %a (%llu ulp)",
                       x, reference, aprisma_log(x), (unsigned long long)ulps);
+            return;
+        }
+    }
+}
+
+TEST(pow_special_values)
+{
+    CHECK_NEAR(aprisma_pow(-2.0, 3.0), -8.0, 0);
+    CHECK_NEAR(aprisma_pow(-2.0, -2.0), 0.25, 0);
+    CHECK(isnan(aprisma_pow(-8.0, 1.0 / 3.0)));
+    CHECK(isinf(aprisma_pow(0.0, -1.0)));
+    CHECK(aprisma_pow(0.0, 0.5) == 0.0);
+    CHECK(isinf(aprisma_pow(2.0, INFINITY)));
+    CHECK(aprisma_pow(0.5, INFINITY) == 0.0);
+    CHECK(aprisma_pow(-1.0, INFINITY) == 1.0);
+    CHECK(aprisma_pow(NAN, 0.0) == 1.0);
+    CHECK(aprisma_pow(1.0, NAN) == 1.0);
+    CHECK(isnan(aprisma_pow(NAN, 2.0)));
+    CHECK_NEAR(aprisma_pow(2.0, -2147483648.0), 0.0, 0);   // most negative int exponent
+    CHECK_NEAR(aprisma_pow(-1.0, 1e20), 1.0, 0);           // huge even exponent
+}
+
+// Compare with the host pow on random positive bases and exponents. The
+// allowed relative error follows exp(y * log(x)): one rounding of
+// y * log(x) shifts the result by |y * log(x)| ulp
+TEST(pow_matches_host_libc)
+{
+    for (int i = 0; i < 100000; i++) {
+        double x = (double)(1 + next_random() % 1000000) / 1000.0;
+        double y = ((double)(int64_t)next_random() / 9223372036854775808.0) * 50.0;
+        double host = pow(x, y);
+        double ours = aprisma_pow(x, y);
+        double allowed = (fabs(y * log(x)) + 2.0) * 2.3e-16 * fabs(host);
+        if (!(fabs(ours - host) <= allowed)) {
+            test_fail(__FILE__, __LINE__, "pow(%.17g, %.17g): host %.17g, got %.17g", x, y, host, ours);
             return;
         }
     }
