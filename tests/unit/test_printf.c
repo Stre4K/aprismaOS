@@ -1,0 +1,133 @@
+// test_printf.c
+// printf(): src/libc/stdio/printf.c
+
+#include "aprisma.h"
+#include "test.h"
+
+#include <limits.h>
+
+// Run printf and check the exact bytes it printed and its return value
+#define CHECK_PRINTF(expected, ...)                                           \
+    do {                                                                      \
+        capture_reset();                                                      \
+        int ret_ = aprisma_printf(__VA_ARGS__);                               \
+        CHECK_STR_EQ(capture_text(), expected);                               \
+        CHECK_INT_EQ(capture_length(), strlen(expected));                     \
+        CHECK_INT_EQ(ret_, (int)strlen(expected));                            \
+    } while (0)
+
+TEST(printf_plain_text)
+{
+    CHECK_PRINTF("hello, world", "hello, world");
+    CHECK_PRINTF("", "");
+}
+
+TEST(printf_percent_sign)
+{
+    CHECK_PRINTF("100%", "100%%");
+}
+
+TEST(printf_char_and_string)
+{
+    CHECK_PRINTF("a=x s=abc", "a=%c s=%s", 'x', "abc");
+}
+
+TEST(printf_signed_decimal)
+{
+    CHECK_PRINTF("0 42 -42", "%d %d %i", 0, 42, -42);
+    CHECK_PRINTF("2147483647", "%d", INT_MAX);
+}
+
+TEST_KNOWN_BUG(printf_int_min,
+               "negating INT_MIN overflows, so the digits come out as garbage")
+{
+    CHECK_PRINTF("-2147483648", "%d", INT_MIN);
+}
+
+TEST_KNOWN_BUG(printf_unsigned_above_int_max,
+               "%u is converted with the signed itoa()")
+{
+    CHECK_PRINTF("3000000000", "%u", 3000000000u);
+    CHECK_PRINTF("4294967295", "%u", UINT_MAX);
+}
+
+TEST_KNOWN_BUG(printf_hex_lowercase,
+               "%x is converted as a signed int; values >= 0x80000000 print garbage")
+{
+    CHECK_PRINTF("ff 0 deadbeef", "%x %x %x", 255, 0, 0xdeadbeefu);
+}
+
+TEST_KNOWN_BUG(printf_hex_uppercase,
+               "%X prints lowercase digits")
+{
+    CHECK_PRINTF("FF", "%X", 255);
+}
+
+TEST_KNOWN_BUG(printf_hex_of_negative_int,
+               "%x is converted as a signed int; negative remainders print garbage")
+{
+    CHECK_PRINTF("ffffffff", "%x", -1);
+}
+
+TEST(printf_pointer)
+{
+    CHECK_PRINTF("0x1234", "%p", (void *)0x1234);
+    CHECK_PRINTF("(nil)", "%p", (void *)0);
+}
+
+TEST_KNOWN_BUG(printf_null_string,
+               "%s calls strlen(NULL)")
+{
+    CHECK_PRINTF("(null)", "%s", (char *)NULL);
+}
+
+TEST(printf_unknown_specifier_is_printed)
+{
+    CHECK_PRINTF("%q", "%q");
+}
+
+TEST_KNOWN_BUG(printf_trailing_percent,
+               "a '%' at the end prints the NUL and keeps reading past the format string")
+{
+    // The format must not be read past its terminator. The buffer after the
+    // NUL holds text that must never show up in the output.
+    static const char format[] = "a%\0SHOULD NOT PRINT";
+    capture_reset();
+    int ret = aprisma_printf(format);
+    CHECK_INT_EQ(capture_length(), 2);
+    CHECK_MEM_EQ(capture_text(), "a%", 2);
+    CHECK_INT_EQ(ret, 2);
+}
+
+TEST(printf_float)
+{
+    CHECK_PRINTF("1.500000", "%f", 1.5);
+    CHECK_PRINTF("2.250000", "%f", 2.25);
+}
+
+TEST_KNOWN_BUG(printf_float_negative_fraction,
+               "ftoa does not handle the sign of the fraction")
+{
+    CHECK_PRINTF("-0.500000", "%f", -0.5);
+    CHECK_PRINTF("-1.500000", "%f", -1.5);
+}
+
+TEST_KNOWN_BUG(printf_float_leading_zero_in_fraction,
+               "ftoa drops leading zeros of the fraction")
+{
+    CHECK_PRINTF("1.050000", "%f", 1.05);
+}
+
+TEST_KNOWN_BUG(printf_width_and_zero_padding,
+               "width and flags are not parsed, so later arguments shift")
+{
+    // Unsupported flags must at least not shift the remaining arguments
+    CHECK_PRINTF("000000ff|7", "%08x|%d", 255, 7);
+}
+
+TEST(puts_appends_newline)
+{
+    capture_reset();
+    aprisma_puts("line");
+    CHECK_STR_EQ(capture_text(), "line\n");
+}
