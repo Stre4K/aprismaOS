@@ -99,3 +99,45 @@ void map_page(uint32_t virt, uint32_t phys)
     pt[table] = (phys & ~0xFFF) | PAGE_PRESENT | PAGE_RW;
     invlpg(virt);
 }
+
+// Remove the mapping for one 4K page. Returns the physical address that was
+// mapped there (0 if nothing was), so the caller can give it back to the PMM.
+uint32_t unmap_page(uint32_t virt)
+{
+    uint32_t dir = virt >> 22;
+    uint32_t table = (virt >> 12) & 0x3FF;
+
+    if (dir == 1023)
+        panic("unmap_page: cannot unmap the recursive mapping region");
+
+    uint32_t *pd = PAGE_DIRECTORY;
+    if (!(pd[dir] & PAGE_PRESENT))
+        return 0;
+
+    uint32_t *pt = PAGE_TABLE(virt);
+    if (!(pt[table] & PAGE_PRESENT))
+        return 0;
+
+    uint32_t phys = pt[table] & ~0xFFF;
+    pt[table] = 0;
+    invlpg(virt);
+
+    return phys;
+}
+
+// Look up the physical address a virtual address maps to (0 if unmapped)
+uint32_t virt_to_phys(uint32_t virt)
+{
+    uint32_t dir = virt >> 22;
+    uint32_t table = (virt >> 12) & 0x3FF;
+
+    uint32_t *pd = PAGE_DIRECTORY;
+    if (!(pd[dir] & PAGE_PRESENT))
+        return 0;
+
+    uint32_t *pt = PAGE_TABLE(virt);
+    if (!(pt[table] & PAGE_PRESENT))
+        return 0;
+
+    return (pt[table] & ~0xFFF) | (virt & 0xFFF);
+}
