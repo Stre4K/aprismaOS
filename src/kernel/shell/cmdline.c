@@ -44,6 +44,11 @@ void cmdline_input_char(char c) {
         return;
     }
 
+    // Only printable characters go into the line (no tabs, escapes, ...)
+    if (c < ' ' || c > '~') {
+        return;
+    }
+
     if (cmdline_length < CMDLINE_MAX_LEN - 1) {
         for (size_t i = cmdline_length; i > cmdline_cursor; i--) {
             cmdline_buffer[i] = cmdline_buffer[i - 1];
@@ -79,3 +84,29 @@ void cmdline_cursor_right(void) {
     }
 }
 
+
+void cmdline_home(void) {
+    cmdline_cursor = 0;
+    tty_set_cursor(cmdline_cursor, tty_get_row());
+}
+
+void cmdline_end(void) {
+    cmdline_cursor = cmdline_length;
+    tty_set_cursor(cmdline_cursor, tty_get_row());
+}
+
+// Delete the character under the cursor
+void cmdline_delete(void) {
+    if (cmdline_cursor < cmdline_length) {
+        cmdline_cursor++;
+        cmdline_input_char('\b');
+    }
+}
+
+// Ctrl+C: abandon the current line and start a new one
+void cmdline_cancel(void) {
+    terminal_scroll_to_bottom();
+    tty_set_cursor(cmdline_length, tty_get_row());  // after the text, not over it
+    printk("^C\n");
+    cmdline_init();
+}

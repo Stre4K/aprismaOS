@@ -6,5 +6,9 @@ void cmdline_input_char(char c);
 void cmdline_cursor_left(void);
 void cmdline_cursor_right(void);
 void cmdline_redraw(void);
+void cmdline_home(void);
+void cmdline_end(void);
+void cmdline_delete(void);
+void cmdline_cancel(void);
 
 #endif

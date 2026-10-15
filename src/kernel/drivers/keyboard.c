@@ -14,80 +14,50 @@
 /* Keyboard variables */
 /* ================================================================== */
 
-static int shift_pressed = 0;
-static int extended_scancode = 0;
-static int edit_mode = 0; // 0 = command-line mode, 1 = edit mode
-static int ctrl_pressed = 0;
+// Each modifier key is tracked on its own: releasing one Shift must not
+// cancel the other one that is still held
+static bool left_shift, right_shift;
+static bool left_ctrl, right_ctrl;
+static bool extended_scancode;
+static bool edit_mode;  // false = command-line mode, true = edit mode
+
+static bool shift_held(void) { return left_shift || right_shift; }
+static bool ctrl_held(void) { return left_ctrl || right_ctrl; }
 
 /* ================================================================== */
-/* Keyboard IRQ handler helpers */
+/* Scancode decoding helpers */
 /* ================================================================== */
 
-// Helper for extended scancodes
-static void handle_extended_scancode(uint8_t sc) {
-    uint8_t code = sc & 0x7F;
-    int is_release = sc & 0x80;
-
-    if (is_release)
-        return;
-
-    switch (code) {
-        case 0x48:
-            if (edit_mode) {
-                tty_move_cursor(0, -1);
-            }
-            break;  // UP
-        case 0x50:
-            if (edit_mode) {
-                tty_move_cursor(0, 1);
+// A character from a key press: into the command line, or onto the screen
+// in edit mode
+static void handle_char(char c) {
+    if (edit_mode) {
+        if (c == '\b') {
+            tty_backspace();
+        } else if (c == '\n' || (c >= ' ' && c <= '~')) {
+            terminal_putchar(c);
         }
-        break;  // DOWN
-        case 0x4B:
-            if (!edit_mode) {
-                cmdline_cursor_left();
-                break;
-            }
-            tty_move_cursor(-1, 0);
-            break; // LEFT
-        case 0x4D:
-            if (!edit_mode) {
-                cmdline_cursor_right();
-                break;
-            }
-            tty_move_cursor(1, 0);
-            break;  // RIGHT
-        case 0x49: // PGUP
-            if (ctrl_pressed) {
-                terminal_scroll_to_top();
-            } else {
-                terminal_scroll_up();
-            }
-            break;
-        case 0x51: // PGDN
-            if (ctrl_pressed) {
-                terminal_scroll_to_bottom();
-            } else {
-                terminal_scroll_down();
-            }
-            break;
-        default:
-            printk("[UNKNOWN EXT: 0x%02X]", code);
-            break;
+    } else {
+        cmdline_input_char(c);
     }
 }
 
-
-void handle_ctrl_key(uint8_t scancode) {
+static void handle_ctrl_key(uint8_t scancode) {
     switch (scancode) {
-        case 0x2E: // Ctrl+C (scancode for 'c')
-            // send SIGINT or break input
-            printk("^C\n");
+        case 0x2E: // Ctrl+C: abandon the current line
+            if (edit_mode) {
+                printk("^C\n");
+            } else {
+                cmdline_cancel();
+            }
             break;
-        case 0x26: // Ctrl+L (scancode for 'l')
-            terminal_initialize(); // clear screen
+        case 0x26: // Ctrl+L: clear the screen, keep what is being typed
+            terminal_clear_screen();
+            if (!edit_mode) {
+                cmdline_redraw();
+            }
             break;
-        // add more as needed
-        case 0x12: // Ctrl+E (scancode for 'e')
+        case 0x12: // Ctrl+E: toggle edit mode
             edit_mode = !edit_mode;
             break;
         default:
@@ -95,42 +65,73 @@ void handle_ctrl_key(uint8_t scancode) {
     }
 }
 
-static void handle_key_press(uint8_t scancode, int shift_pressed) {
-    char c = 0;
+// Keys sent with the 0xE0 prefix (scancode set 1)
+static void handle_extended_scancode(uint8_t sc) {
+    uint8_t code = sc & 0x7F;
+    bool release = sc & 0x80;
 
-    if (scancode < sizeof(scancode_to_ascii)) {
-        c = shift_pressed ? scancode_to_ascii_shift[scancode] : scancode_to_ascii[scancode];
-    }
-    if (!c) {
+    if (code == 0x1D) {          // Right Ctrl
+        right_ctrl = !release;
         return;
     }
-    if (edit_mode) {
-        if (c == '\b') {
-            tty_backspace();
-            return;
-        }
-        terminal_putchar(c); // type at cursor
-    } else {
-        cmdline_input_char(c);  // simple input (append only)
+    if (release) {
+        return;
     }
 
+    switch (code) {
+        case 0x1C: // keypad Enter
+            handle_char('\n');
+            break;
+        case 0x35: // keypad '/'
+            handle_char('/');
+            break;
+        case 0x48: // UP
+            if (edit_mode) tty_move_cursor(0, -1);
+            break;
+        case 0x50: // DOWN
+            if (edit_mode) tty_move_cursor(0, 1);
+            break;
+        case 0x4B: // LEFT
+            if (edit_mode) tty_move_cursor(-1, 0);
+            else cmdline_cursor_left();
+            break;
+        case 0x4D: // RIGHT
+            if (edit_mode) tty_move_cursor(1, 0);
+            else cmdline_cursor_right();
+            break;
+        case 0x47: // HOME
+            if (!edit_mode) cmdline_home();
+            break;
+        case 0x4F: // END
+            if (!edit_mode) cmdline_end();
+            break;
+        case 0x53: // DELETE
+            if (!edit_mode) cmdline_delete();
+            break;
+        case 0x49: // PGUP
+            if (ctrl_held()) terminal_scroll_to_top();
+            else terminal_scroll_up();
+            break;
+        case 0x51: // PGDN
+            if (ctrl_held()) terminal_scroll_to_bottom();
+            else terminal_scroll_down();
+            break;
+        default:
+            // Everything else (Right Alt, Windows keys, Insert, media keys
+            // and the "fake shift" codes 0x2A/0x36 some keyboards send
+            // around navigation keys) is ignored
+            break;
+    }
 }
 
-
-bool is_shift_press(uint8_t sc) {
-    return sc == LEFT_SHIFT_DOWN || sc == RIGHT_SHIFT_DOWN;
-}
-
-bool is_shift_release(uint8_t sc) {
-    return sc == LEFT_SHIFT_UP || sc == RIGHT_SHIFT_UP;
-}
-
-bool is_ctrl_press(uint8_t sc) {
-    return sc == LEFT_CTRL_DOWN;
-}
-
-bool is_ctrl_release(uint8_t sc) {
-    return sc == LEFT_CTRL_UP;
+static void handle_key_press(uint8_t scancode) {
+    if (scancode >= sizeof(scancode_to_ascii)) {
+        return;
+    }
+    char c = shift_held() ? scancode_to_ascii_shift[scancode] : scancode_to_ascii[scancode];
+    if (c) {
+        handle_char(c);
+    }
 }
 
 /* ======================================================================
@@ -179,33 +180,36 @@ bool keyboard_has_input(void) {
 static void keyboard_handle_scancode(uint8_t sc) {
     // Handle extended scancode prefix
     if (sc == 0xE0) {
-        extended_scancode = 1;
+        extended_scancode = true;
         return;
     }
 
     // Handle extended scancode
     if (extended_scancode) {
-        extended_scancode = 0;
+        extended_scancode = false;
         handle_extended_scancode(sc);
         return;
     }
 
-    if (is_shift_press(sc)) {
-        shift_pressed = 1;
-    } else if (is_shift_release(sc)) {
-        shift_pressed = 0;
-    } else if (is_ctrl_press(sc)) {
-        ctrl_pressed = 1;
-    } else if (is_ctrl_release(sc)) {
-        ctrl_pressed = 0;
-    } else if (!(sc & 0x80)) { // key press
-        if (ctrl_pressed) {
-            handle_ctrl_key(sc);
-        } else {
-            handle_key_press(sc, shift_pressed);
-        }
+    switch (sc) {
+        case LEFT_SHIFT_DOWN:  left_shift = true;   return;
+        case LEFT_SHIFT_UP:    left_shift = false;  return;
+        case RIGHT_SHIFT_DOWN: right_shift = true;  return;
+        case RIGHT_SHIFT_UP:   right_shift = false; return;
+        case LEFT_CTRL_DOWN:   left_ctrl = true;    return;
+        case LEFT_CTRL_UP:     left_ctrl = false;   return;
+        default: break;
     }
-    // other key releases are ignored
+
+    if (sc & 0x80) {
+        return;  // other key releases are ignored
+    }
+
+    if (ctrl_held()) {
+        handle_ctrl_key(sc);
+    } else {
+        handle_key_press(sc);
+    }
 }
 
 void keyboard_process(void) {

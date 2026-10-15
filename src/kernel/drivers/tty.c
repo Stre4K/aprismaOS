@@ -237,11 +237,17 @@ void terminal_clear_line(const size_t row) {
         line[x] = vga_entry(' ', terminal_color);
 }
 
+// Blank the visible screen and move the cursor to the top-left corner.
+// Older lines stay in the scrollback.
 void terminal_clear_screen(void) {
+    history_view = history_head >= VGA_HEIGHT - 1 ? history_head - (VGA_HEIGHT - 1) : 0;
+
     for (size_t y = 0; y < VGA_HEIGHT; y++)
         terminal_clear_line(y);
 
     terminal_render();
+    vga_enable_cursor();
+    tty_set_cursor(0, 0);
 }
 
 void terminal_scroll_up(void) {

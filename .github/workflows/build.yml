@@ -295,6 +295,13 @@ jobs:
             --run "test scroll" "scroll line 1499\nscroll test done" \
             --run "version" "AprismaOS v[^ ]+ \(${{ matrix.arch == 'x86_64' && 'x86_64' || 'i686' }}\)"
 
+      # Keyboard and command-line behaviour (key presses sent through QMP)
+      - name: Keyboard test ${{ matrix.artifact }}
+        if: ${{ !matrix.is_iso }}
+        run: |
+          python3 scripts/qemu_keyboard_test.py --arch ${{ matrix.arch }} \
+            --kernel ${{ matrix.artifact }}/aprisma.kernel --timeout 60
+
       # Booting must not hang when there is no keyboard controller. Kernels
       # only: GRUB's menu itself needs a keyboard to continue.
       - name: Boot test without PS/2 controller ${{ matrix.artifact }}
