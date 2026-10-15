@@ -21,7 +21,7 @@ void memory_map_detect(multiboot_info_t *mbi) {
     uint64_t reserved = 0;
 
     while (addr < end) {
-        multiboot_mmap_entry_t *entry = (multiboot_mmap_entry_t *)addr;
+        multiboot_mmap_entry_t *entry = (multiboot_mmap_entry_t *)(uintptr_t)addr;
 
         printk(" base=%llx len=%llx type=%u\n", entry->addr, entry->len,
                entry->type);
