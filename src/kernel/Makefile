@@ -25,9 +25,15 @@ LDFLAGS  += $(KERNEL_ARCH_LDFLAGS)
 LIBS     += $(KERNEL_ARCH_LIBS)
 
 # Kernel sources and objects
-KERNEL_SRCS := $(shell find $(SRC_DIR) -name '*.c' -o -name '*.S')
-			   #$(shell find $(SRC_DIR)/core -name '*.c') \
-               #$(shell find $(SRC_DIR)/arch/$(HOSTARCH) -name '*.c' -o -name '*.S')
+# Generic sources are everything outside arch/. An arch can limit them with
+# KERNEL_GENERIC_SRCS in its make.config (used while a port is in progress).
+ifdef KERNEL_GENERIC_SRCS
+GENERIC_SRCS := $(addprefix $(SRC_DIR)/,$(KERNEL_GENERIC_SRCS))
+else
+GENERIC_SRCS := $(shell find $(SRC_DIR) -path $(SRC_DIR)/arch -prune -o \( -name '*.c' -o -name '*.S' \) -print)
+endif
+ARCH_SRCS    := $(shell find $(ARCHDIR) -name '*.c' -o -name '*.S')
+KERNEL_SRCS  := $(GENERIC_SRCS) $(ARCH_SRCS)
 KERNEL_OBJS := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(KERNEL_SRCS))
 KERNEL_OBJS := $(patsubst $(SRC_DIR)/%.S,$(OBJ_DIR)/%.o,$(KERNEL_OBJS))
 
@@ -50,7 +56,7 @@ RESET := \033[0m
 # -------------------------
 $(BIN): $(KERNEL_OBJS) $(ARCHDIR)/linker.ld $(LIBK_A)
 	@mkdir -p $(dir $@)
-	@$(CC) -nostdlib -ffreestanding \
+	@$(CC) -nostdlib -ffreestanding $(LDFLAGS) \
 		-T $(ARCHDIR)/linker.ld \
 		-o $@ \
 		$(KERNEL_OBJS) \

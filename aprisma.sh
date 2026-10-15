@@ -180,10 +180,15 @@ done
 # Environment setup
 # ============================
 case "$COMPILER" in
-    i686-elf-gcc) HOST=i686-elf ;;
-    x86_64-elf-gcc) HOST=x86_64-elf ;;
+    i686-elf-gcc)   HOST=i686-elf;   HOSTARCH=i386;   QEMU=qemu-system-i386 ;;
+    x86_64-elf-gcc) HOST=x86_64-elf; HOSTARCH=x86_64; QEMU=qemu-system-x86_64 ;;
     *) echo "Invalid compiler: $COMPILER"; exit 1 ;;
 esac
+
+export HOSTARCH
+DEBUGGER="${HOST}-gdb"
+# Keep objects per architecture so switching --compiler never mixes them
+OBJ_DIR="$OBJ_DIR/$HOSTARCH"
 
 export CC="${HOST}-gcc"
 export AS="${HOST}-as"
@@ -266,13 +271,18 @@ if [ -n "$RUN_MODE" ]; then
     case "$RUN_MODE" in
         kernel)
             RUN_KERNEL=${RUN_PATH:-"$KERNEL_PATH"}
+            if [ "$HOSTARCH" = "x86_64" ]; then
+                # QEMU's built-in Multiboot loader only accepts 32-bit ELF files
+                "${HOST}-objcopy" -O elf32-i386 "$RUN_KERNEL" "$ROOTDIR/build/aprisma32.kernel"
+                RUN_KERNEL="$ROOTDIR/build/aprisma32.kernel"
+            fi
             echo "Running kernel in QEMU: $RUN_KERNEL"
-            qemu-system-i386 -kernel "$RUN_KERNEL" -monitor stdio
+            $QEMU -kernel "$RUN_KERNEL" -monitor stdio
             ;;
         iso)
             RUN_ISO=${RUN_PATH:-"$ISO_OUTPUT"}
             echo "Running ISO in QEMU: $RUN_ISO"
-            qemu-system-i386 -cdrom "$RUN_ISO" -boot d -monitor stdio $QEMU_GDB_DEBUG
+            $QEMU -cdrom "$RUN_ISO" -boot d -monitor stdio $QEMU_GDB_DEBUG
             ;;
         *)
             echo "Unknown run mode: $RUN_MODE"
