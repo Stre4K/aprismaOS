@@ -4,6 +4,12 @@
 #include <kernel/arch/timer.h>
 #include <kernel/printk.h>
 #include <kernel/sched.h>
+#ifdef CONFIG_USERMODE
+#include <kernel/arch/cpu.h>
+#include <kernel/arch/syscall.h>
+#include <kernel/proc.h>
+#include <stdio.h>
+#endif
 #include <stdint.h>
 
 /* ========================================================
@@ -61,6 +67,25 @@ void isr_common_handler(void* regs) {
     uint8_t int_no = r->int_no;
     //printk("[ISR] int_no: %d\n", int_no);
 
+
+#ifdef CONFIG_USERMODE
+    /* System calls */
+    if (int_no == SYSCALL_VECTOR) {
+        syscall_dispatch(r);
+        return;
+    }
+
+    /* A fault in user mode ends that process, not the kernel */
+    if (int_no < 32 && REGS_FROM_USER(r)) {
+        char reason[96];
+        if (int_no == 14)
+            snprintf(reason, sizeof(reason), "%s at address 0x%llx", exception_names[int_no],
+                     (unsigned long long)read_cr2());
+        else
+            snprintf(reason, sizeof(reason), "%s", exception_names[int_no]);
+        process_kill(reason, r);
+    }
+#endif
 
     /* CPU exceptions */
     if (int_no < 32) {

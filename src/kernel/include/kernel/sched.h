@@ -33,6 +33,9 @@ typedef struct thread {
     uint64_t wake_tick;          // for THREAD_SLEEPING
     uint64_t ticks;              // timer ticks spent running
     int stack_slot;              // kernel stack slot, -1 for the boot stack
+    uintptr_t kstack_top;        // top of the kernel stack (0 for the boot stack)
+    uintptr_t space;             // address space, 0 = the kernel's
+    struct process *process;     // user process this thread runs, or NULL
     struct thread *next;         // run queue link
     struct thread *all_next;     // list of all threads
 } thread_t;
@@ -52,6 +55,13 @@ void sched_init(void);
 // Create a kernel thread that runs entry(arg); returns NULL when out of
 // memory or thread slots. The thread exits when entry returns.
 thread_t *thread_create(const char *name, void (*entry)(void *), void *arg);
+
+#ifdef CONFIG_USERMODE
+// Like thread_create, but the thread runs in address space `space` on
+// behalf of `process`; both are set before it can first run
+thread_t *thread_create_in(const char *name, void (*entry)(void *), void *arg,
+                           uintptr_t space, struct process *process);
+#endif
 
 thread_t *thread_current(void);
 void thread_yield(void);

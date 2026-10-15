@@ -25,6 +25,10 @@
 #include <kernel/mm/paging.h>
 #include <kernel/mm/pmm.h>
 #include <kernel/panic.h>
+#ifdef CONFIG_USERMODE
+#include <kernel/arch/syscall.h>
+#include <kernel/proc.h>
+#endif
 #include <string.h>
 
 #define PAGE_SIZE 4096
@@ -122,6 +126,10 @@ static void reap_dead_threads(void)
         thread_t *t = *link;
         if (t->state == THREAD_DEAD && t != current) {
             *link = t->all_next;
+#ifdef CONFIG_USERMODE
+            if (t->process)
+                process_thread_reaped(t->process);  // frees its address space
+#endif
             stack_free(t->stack_slot);
             kfree(t);
         } else {
@@ -151,6 +159,13 @@ static void schedule(void)
 
     if (next != prev) {
         current = next;
+#ifdef CONFIG_USERMODE
+        // Interrupts from user mode arrive on the thread's own kernel
+        // stack, and each process has its own address space
+        if (next->kstack_top)
+            arch_set_kernel_stack(next->kstack_top);
+        paging_switch_space(next->space ? next->space : paging_kernel_space());
+#endif
         arch_switch_context(&prev->sp, next->sp);
     }
 
@@ -189,6 +204,7 @@ static thread_t *thread_new(const char *name, void (*entry)(void *), void *arg)
     }
 
     t->stack_slot = slot;
+    t->kstack_top = stack_top(slot);
     t->sp = arch_thread_stack_init(stack_top(slot), entry, arg);
     t->id = next_id++;
     strncpy(t->name, name, THREAD_NAME_LEN - 1);
@@ -230,6 +246,24 @@ thread_t *thread_create(const char *name, void (*entry)(void *), void *arg)
     irq_restore(flags);
     return t;
 }
+
+#ifdef CONFIG_USERMODE
+thread_t *thread_create_in(const char *name, void (*entry)(void *), void *arg,
+                           uintptr_t space, struct process *process)
+{
+    thread_t *t = thread_new(name, entry, arg);
+    if (t == NULL)
+        return NULL;
+
+    t->space = space;
+    t->process = process;
+
+    unsigned long flags = irq_save();
+    run_queue_push(t);
+    irq_restore(flags);
+    return t;
+}
+#endif
 
 thread_t *thread_current(void)
 {
