@@ -1,4 +1,10 @@
 #include <kernel/multiboot.h>
+#include <kernel/drivers/tty.h>
+#include <kernel/printk.h>
+#include <kernel/mm/memory_map.h>
+
+// Subsystems not yet ported to x86_64 stay i386-only until their port lands
+#if defined(__i386__)
 #include <kernel/arch/gdt.h>
 #include <kernel/arch/idt.h>
 #include <kernel/arch/isr.h>
@@ -9,17 +15,17 @@
 #include <kernel/drivers/keyboard.h>
 #include <kernel/drivers/ps2.h>
 #include <kernel/arch/timer.h>
-#include <kernel/drivers/tty.h>
-#include <kernel/printk.h>
 #include <kernel/shell/commands.h>
-#include <kernel/mm/memory_map.h>
 #include <kernel/mm/fault.h>
 #include <kernel/mm/paging.h>
-#include <kernel/mm/memory_map.h>
 #include <kernel/mm/pmm.h>
 #include <kernel/mm/heap.h>
+#endif
+
 void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
+#if defined(__i386__)
     disable_interrupts();
+#endif
 
     terminal_initialize();
 
@@ -35,6 +41,14 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     memory_map_detect(mb_info_ptr);
     printk("address of multiboot_info: %p\n", mb_info_ptr);
     //print_multiboot_info((multiboot_info_t *)mb_info_ptr);
+
+#if defined(__x86_64__)
+    printk("[x86_64] Running in 64-bit long mode\n");
+
+    // TODO(x86_64): port GDT/IDT, memory management, drivers and the shell
+    for (;;)
+        __asm__ volatile("cli; hlt");
+#else
     init_gdt();
     printk("[GDT] Loaded\n");
 
@@ -76,4 +90,5 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     while(1) {
         continue;
     }
+#endif
 }
