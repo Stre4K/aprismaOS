@@ -277,12 +277,14 @@ if [ -n "$RUN_MODE" ]; then
                 RUN_KERNEL="$ROOTDIR/build/aprisma32.kernel"
             fi
             echo "Running kernel in QEMU: $RUN_KERNEL"
-            $QEMU -kernel "$RUN_KERNEL" -monitor stdio
+            echo "Serial console on this terminal (Ctrl+A C: QEMU monitor, Ctrl+A X: quit)"
+            $QEMU -kernel "$RUN_KERNEL" -serial mon:stdio
             ;;
         iso)
             RUN_ISO=${RUN_PATH:-"$ISO_OUTPUT"}
             echo "Running ISO in QEMU: $RUN_ISO"
-            $QEMU -cdrom "$RUN_ISO" -boot d -monitor stdio $QEMU_GDB_DEBUG
+            echo "Serial console on this terminal (Ctrl+A C: QEMU monitor, Ctrl+A X: quit)"
+            $QEMU -cdrom "$RUN_ISO" -boot d -serial mon:stdio $QEMU_GDB_DEBUG
             ;;
         *)
             echo "Unknown run mode: $RUN_MODE"
