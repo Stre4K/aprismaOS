@@ -6,3 +6,6 @@ compile_commands.json
 .clangd
 .cache
 build
+
+# Python bytecode (scripts/qemu_keyboard_test.py imports qemu_boot_test.py)
+__pycache__/
