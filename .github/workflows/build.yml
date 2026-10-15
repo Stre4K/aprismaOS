@@ -289,7 +289,7 @@ jobs:
           else
             IMAGE="--kernel ${{ matrix.artifact }}/aprisma.kernel"
           fi
-          python3 scripts/qemu_boot_test.py --arch ${{ matrix.arch }} $IMAGE --timeout 120 \
+          python3 scripts/qemu_boot_test.py --arch ${{ matrix.arch }} $IMAGE --timeout 120 --check-serial \
             --run "test heap" "heap test: peak heap [0-9]+ KB, passed" \
             --run "test timer" "timer test: [0-9]+ ticks during the command, passed" \
             --run "test scroll" "scroll line 1499\nscroll test done" \
@@ -301,6 +301,14 @@ jobs:
         run: |
           python3 scripts/qemu_keyboard_test.py --arch ${{ matrix.arch }} \
             --kernel ${{ matrix.artifact }}/aprisma.kernel --timeout 60
+
+      # The serial console must not hang a machine that has no serial port
+      - name: Boot test without serial port ${{ matrix.artifact }}
+        if: ${{ !matrix.is_iso }}
+        run: |
+          python3 scripts/qemu_boot_test.py --arch ${{ matrix.arch }} \
+            --kernel ${{ matrix.artifact }}/aprisma.kernel --timeout 120 --no-serial \
+            --run "echo still works" "(?m)^still works$"
 
       # Booting must not hang when there is no keyboard controller. Kernels
       # only: GRUB's menu itself needs a keyboard to continue.

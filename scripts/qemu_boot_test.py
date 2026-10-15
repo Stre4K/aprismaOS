@@ -5,7 +5,8 @@ The kernel only writes to the VGA text screen, so the test reads the screen
 straight out of guest memory (physical 0xB8000) through the QEMU monitor.
 It waits for the boot to finish, optionally types shell commands and waits
 for their output, and fails on a kernel panic, an unhandled exception, QEMU
-exiting (e.g. a triple fault, since -no-reboot is used) or a timeout.
+exiting (e.g. a triple fault, since -no-reboot is used) or a timeout. The
+kernel's serial output (COM1) is recorded too and printed on failure.
 
 Examples:
   scripts/qemu_boot_test.py --arch i386 --kernel build/AprismaOS/sysroot/boot/aprisma.kernel
@@ -89,6 +90,15 @@ def read_screen(monitor, dump_path):
     return "\n".join(lines)
 
 
+def read_serial_log(path):
+    """The kernel's serial output so far, with \\r\\n turned into \\n."""
+    try:
+        with open(path, "rb") as f:
+            return f.read().decode(errors="replace").replace("\r\n", "\n")
+    except FileNotFoundError:
+        return ""
+
+
 def type_text(monitor, text):
     for ch in text:
         if ch.isalnum():
@@ -142,6 +152,10 @@ def main():
     parser.add_argument("--timeout", type=float, default=60, help="seconds allowed for each step")
     parser.add_argument("--boot-done", default=BOOT_DONE, metavar="REGEX",
                         help="screen text that marks the end of the boot (default: keyboard initialized)")
+    parser.add_argument("--no-serial", action="store_true",
+                        help="boot without a serial port (-serial none)")
+    parser.add_argument("--check-serial", action="store_true",
+                        help="also require the boot marker and every --run result in the serial log")
     parser.add_argument("--qemu-arg", action="append", default=[], metavar="ARG",
                         help="extra QEMU argument, e.g. --qemu-arg=-machine --qemu-arg=pc,i8042=off (repeatable)")
     parser.add_argument("--objcopy", default="objcopy", help="objcopy used to convert x86_64 kernels")
@@ -155,6 +169,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix="aprisma-boot-") as tmp:
         monitor_path = os.path.join(tmp, "monitor.sock")
         dump_path = os.path.join(tmp, "vga.bin")
+        serial_path = os.path.join(tmp, "serial.log")
+        serial_args = ["-serial", "none"] if args.no_serial else ["-serial", f"file:{serial_path}"]
 
         # QEMU runs inside tmp, so image paths must be absolute
         if args.kernel:
@@ -169,7 +185,7 @@ def main():
 
         qemu = subprocess.Popen(
             [qemu_bin, *boot_args, "-m", "128M", "-display", "none", "-no-reboot",
-             "-monitor", f"unix:{monitor_path},server,nowait", *args.qemu_arg],
+             "-monitor", f"unix:{monitor_path},server,nowait", *serial_args, *args.qemu_arg],
             cwd=tmp, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
 
         monitor = None
@@ -184,10 +200,22 @@ def main():
                 wait_for(monitor, qemu, dump_path, expect, args.timeout, skip_grub_menu=False)
                 print(f"ok: '{command}' printed /{expect}/")
 
+            if args.check_serial:
+                time.sleep(0.5)  # let QEMU flush the serial file
+                log = read_serial_log(serial_path)
+                for pattern in [args.boot_done, *(expect for _, expect in args.run)]:
+                    if not re.search(pattern, log):
+                        raise TestFailure(f"serial log is missing /{pattern}/")
+                print("ok: serial log has the same output")
+
             print(read_screen(monitor, dump_path))
             return 0
         except TestFailure as e:
             print(f"FAIL: {e}", file=sys.stderr)
+            log = read_serial_log(serial_path)
+            if log:
+                tail = "\n".join(log.splitlines()[-60:])
+                print(f"--- serial log (last 60 lines) ---\n{tail}", file=sys.stderr)
             if qemu.poll() is not None and qemu.stderr:
                 sys.stderr.write(qemu.stderr.read().decode(errors="replace"))
             return 1

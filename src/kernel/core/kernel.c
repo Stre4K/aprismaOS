@@ -1,4 +1,6 @@
 #include <kernel/multiboot.h>
+#include <stdbool.h>
+#include <kernel/drivers/serial.h>
 #include <kernel/drivers/tty.h>
 #include <kernel/printk.h>
 #include <kernel/mm/memory_map.h>
@@ -21,9 +23,13 @@
 void kernel_main(uint32_t magic, uintptr_t mb_info_phys) {
     disable_interrupts();
 
+    // First, so every message (including early panics) reaches the serial log
+    bool have_serial = serial_init();
+
     multiboot_info_t *mb_info_ptr = P2V(mb_info_phys);
 
     terminal_initialize();
+    printk(have_serial ? "[SERIAL] Console mirrored to COM1\n" : "[SERIAL] No serial port found\n");
 
     if (magic != 0x2BADB002) {
         printk("Bad magic number: 0x%08x\n", magic);
