@@ -12,6 +12,7 @@
 #include <kernel/mm/paging.h>
 #include <kernel/mm/pmm.h>
 #include <kernel/arch/memlayout.h>
+#include <kernel/arch/irq.h>
 #include <kernel/panic.h>
 #include <kernel/printk.h>
 #include <stdint.h>
@@ -46,16 +47,14 @@ static uintptr_t heap_end;  // first unmapped address after the heap
 
 /* ---- interrupt-safe locking (single CPU) ---- */
 
-static inline uintptr_t heap_lock(void)
+static inline unsigned long heap_lock(void)
 {
-    uintptr_t flags;
-    asm volatile("pushf; pop %0; cli" : "=r"(flags) :: "memory");
-    return flags;
+    return irq_save();
 }
 
-static inline void heap_unlock(uintptr_t flags)
+static inline void heap_unlock(unsigned long flags)
 {
-    asm volatile("push %0; popf" :: "r"(flags) : "memory", "cc");
+    irq_restore(flags);
 }
 
 /* ---- helpers ---- */
@@ -218,7 +217,7 @@ void *kmalloc(size_t size)
 
     size = ALIGN_UP(size, HEAP_ALIGN);
 
-    uintptr_t flags = heap_lock();
+    unsigned long flags = heap_lock();
 
     block_t *b = heap_first;
     while (b && !(b->magic == BLOCK_FREE && b->size >= size))
@@ -260,7 +259,7 @@ void kfree(void *ptr)
     if (ptr == NULL)
         return;
 
-    uintptr_t flags = heap_lock();
+    unsigned long flags = heap_lock();
 
     block_t *b = ptr_to_block(ptr, "kfree");
     b->magic = BLOCK_FREE;
@@ -292,7 +291,7 @@ void *krealloc(void *ptr, size_t size)
     if (size > HEAP_MAX - HEAP_START)
         return NULL;
 
-    uintptr_t flags = heap_lock();
+    unsigned long flags = heap_lock();
 
     block_t *b = ptr_to_block(ptr, "krealloc");
     size_t aligned = ALIGN_UP(size, HEAP_ALIGN);
@@ -330,7 +329,7 @@ void kheap_get_stats(kheap_stats_t *stats)
 {
     memset(stats, 0, sizeof(*stats));
 
-    uintptr_t flags = heap_lock();
+    unsigned long flags = heap_lock();
 
     stats->heap_size = heap_end - HEAP_START;
 
@@ -349,7 +348,7 @@ void kheap_get_stats(kheap_stats_t *stats)
 
 void kheap_dump(void)
 {
-    uintptr_t flags = heap_lock();
+    unsigned long flags = heap_lock();
 
     int i = 0;
     for (block_t *b = heap_first; b; b = b->next, i++) {
@@ -366,7 +365,7 @@ void kheap_dump(void)
 
 int kheap_check(void)
 {
-    uintptr_t flags = heap_lock();
+    unsigned long flags = heap_lock();
     int ok = 1;
 
     block_t *prev = NULL;
