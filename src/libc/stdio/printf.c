@@ -51,6 +51,7 @@ static void itoa(int value, char *str, int base) {
     str[j] = '\0';
 }
 
+#ifndef LIBK_NO_FLOAT
 // Function to convert float to string
 static void ftoa(double value, char *str, int precision) {
     int int_part = (int)value;
@@ -66,6 +67,7 @@ static void ftoa(double value, char *str, int precision) {
 
     itoa((int)(frac_part + 0.5), str + len + 1, 10);
 }
+#endif // LIBK_NO_FLOAT
 
 // Function to convert pointer to hex string
 static void ptoa(void *ptr, char *str) {
@@ -164,6 +166,7 @@ int printf(const char *restrict format, ...) {
                 written += len;
                 break;
             }
+#ifndef LIBK_NO_FLOAT
             case 'f': {  // Floating point
                 double num = va_arg(parameters, double);
                 char buffer[64];
@@ -177,6 +180,7 @@ int printf(const char *restrict format, ...) {
                 written += len;
                 break;
             }
+#endif // LIBK_NO_FLOAT
             case 'x':
             case 'X': {  // Hexadecimal
                 int num = va_arg(parameters, int);
