@@ -47,7 +47,8 @@ CLEAN=0
 MAKE=${MAKE:-make}
 
 SYSTEM_HEADER_PROJECTS="libc kernel"
-PROJECTS="libc kernel"
+# user programs are built before the kernel, which embeds them
+PROJECTS="libc user kernel"
 KERNEL_PATH="$SYSROOT/boot/aprisma.kernel"
 
 # ============================
