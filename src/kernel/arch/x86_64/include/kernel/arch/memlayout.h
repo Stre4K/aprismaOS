@@ -4,6 +4,7 @@
 //   0x0000000000000000 - 0x00007FFFFFFFFFFF  user space (unused for now)
 //   0xFFFF800000000000 - ...                 direct map of physical memory
 //   0xFFFFC00000000000 - +256 MiB            kernel heap
+//   0xFFFFD00000000000 - +16 MiB             kernel thread stacks
 //   0xFFFFFFFF80000000 - ...                 kernel image (-mcmodel=kernel)
 
 #ifndef _KERNEL_ARCH_MEMLAYOUT_H
@@ -19,6 +20,13 @@
 // Kernel heap
 #define HEAP_START 0xFFFFC00000000000UL
 #define HEAP_MAX   0xFFFFC00010000000UL     // 256 MiB
+
+// Kernel thread stacks: one slot per thread. Only the top KSTACK_PAGES of
+// a slot are mapped; the unmapped pages below catch stack overflows.
+#define KSTACK_START     0xFFFFD00000000000UL
+#define KSTACK_SLOT_SIZE 0x10000UL            // 64 KiB per slot
+#define KSTACK_PAGES     4                    // 16 KiB stack
+#define KSTACK_SLOTS     256                  // maximum number of threads
 
 // Direct-map conversions
 #define P2V(phys) ((void *)((uintptr_t)(phys) + PHYS_MAP_BASE))

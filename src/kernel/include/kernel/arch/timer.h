@@ -11,6 +11,7 @@ uint32_t lapic_timer_read();
 uint32_t lapic_timer_calibrate();
 
 // PIT
+#define PIT_FREQUENCY 100  // timer interrupts per second
 void pit_set_frequency(uint32_t hz);
 void pit_interrupt_handler(regs_t* regs);
 void pit_init();

@@ -18,6 +18,7 @@
 #include <kernel/mm/paging.h>
 #include <kernel/mm/pmm.h>
 #include <kernel/mm/heap.h>
+#include <kernel/sched.h>
 
 // mb_info_phys is the physical address the bootloader passed in EBX
 void kernel_main(uint32_t magic, uintptr_t mb_info_phys) {
@@ -82,6 +83,13 @@ void kernel_main(uint32_t magic, uintptr_t mb_info_phys) {
     //lapic_init();
     //lapic_timer_init(1, 32);
     //lapic_keyboard_init();
+
+#ifdef CONFIG_SCHED
+    // From here on this code runs as thread 0 ("main"); the timer starts
+    // preempting it as soon as interrupts are enabled
+    sched_init();
+    printk("[SCHED] Preemptive scheduler started\n");
+#endif
 
     enable_interrupts();
 
