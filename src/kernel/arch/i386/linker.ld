@@ -46,16 +46,6 @@ SECTIONS
         __stop_shell_commands = .;
     }
 
-    /* mark kernel end */
-    /*
-    .kernel_end ALIGN(4K) :
-    {
-        PROVIDE(kernel_end = .);
-    }
-    */
-    /* mark kernel end */
-    kernel_end = .;
-
 	/* The compiler may produce other sections, put them in the proper place in
 	   in this file, if you'd like to include them in the final kernel. */
     /* ---- Add signature section ---- */
@@ -63,4 +53,9 @@ SECTIONS
     {
         KEEP(*(.signature))
     }
+
+    /* mark kernel end: must stay after the last loaded section so the PMM
+       never hands out pages that belong to the kernel image */
+    . = ALIGN(4K);
+    kernel_end = .;
 }
