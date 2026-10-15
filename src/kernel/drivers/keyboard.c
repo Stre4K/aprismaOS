@@ -71,7 +71,7 @@ static void handle_extended_scancode(uint8_t sc) {
             }
             break;
         default:
-            printk("[UNKNOWN EXT: %02X]", code);
+            printk("[UNKNOWN EXT: 0x%02X]", code);
             break;
     }
 }
@@ -197,7 +197,7 @@ void keyboard_init(void) {
     if (ack == PS2_RESP_ACK) {
         printk("[KEYBOARD] Initialized successfully\n");
     } else {
-        printk("[KEYBOARD] Init error: %02X\n", ack);
+        printk("[KEYBOARD] Init error: 0x%02X\n", ack);
     }
 
     /* mask/unmask IRQ1 as needed. We'll clear the mask for IRQ1 */

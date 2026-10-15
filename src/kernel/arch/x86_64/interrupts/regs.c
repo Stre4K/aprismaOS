@@ -7,9 +7,9 @@
 
 void regs_dump(regs_t *r)
 {
-    printk("RIP=%llx CS=%llx RFLAGS=%llx ERR=%llx\n", r->rip, r->cs, r->rflags, r->err_code);
-    printk("RSP=%llx SS=%llx CR2=%llx\n", r->rsp, r->ss, read_cr2());
-    printk("RAX=%llx RBX=%llx RCX=%llx\n", r->rax, r->rbx, r->rcx);
-    printk("RDX=%llx RSI=%llx RDI=%llx\n", r->rdx, r->rsi, r->rdi);
-    printk("RBP=%llx R8=%llx R9=%llx\n", r->rbp, r->r8, r->r9);
+    printk("RIP=0x%llx CS=0x%llx RFLAGS=0x%llx ERR=0x%llx\n", r->rip, r->cs, r->rflags, r->err_code);
+    printk("RSP=0x%llx SS=0x%llx CR2=0x%llx\n", r->rsp, r->ss, read_cr2());
+    printk("RAX=0x%llx RBX=0x%llx RCX=0x%llx\n", r->rax, r->rbx, r->rcx);
+    printk("RDX=0x%llx RSI=0x%llx RDI=0x%llx\n", r->rdx, r->rsi, r->rdi);
+    printk("RBP=0x%llx R8=0x%llx R9=0x%llx\n", r->rbp, r->r8, r->r9);
 }

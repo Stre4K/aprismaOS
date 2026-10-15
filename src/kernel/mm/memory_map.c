@@ -24,7 +24,7 @@ void memory_map_detect(multiboot_info_t *mbi) {
     while (addr < end) {
         multiboot_mmap_entry_t *entry = (multiboot_mmap_entry_t *)P2V(addr);
 
-        printk(" base=%llx len=%llx type=%u\n", entry->addr, entry->len,
+        printk(" base=0x%llx len=0x%llx type=%u\n", entry->addr, entry->len,
                entry->type);
 
         if (entry->type == 1)

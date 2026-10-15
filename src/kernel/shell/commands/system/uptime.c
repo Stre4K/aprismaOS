@@ -22,7 +22,7 @@ void cmd_uptime(int argc, char **argv) {
     uint32_t minutes = seconds / 60;
     uint32_t hours = minutes / 60;
     uint32_t days = hours / 24;
-    printk("Uptime: %lld days, %lld hours, %lld minutes, %lld seconds, (%lld ticks)\n", days, hours % 24, minutes % 60, seconds % 60, ticks);
+    printk("Uptime: %u days, %u hours, %u minutes, %u seconds, (%llu ticks)\n", days, hours % 24, minutes % 60, seconds % 60, ticks);
 }
 
 SHELL_CMD("system", "uptime", "Show system uptime", cmd_uptime);
