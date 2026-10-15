@@ -28,7 +28,7 @@ UUT_OBJS    := $(patsubst $(ROOTDIR)/%.c,$(BUILD_DIR)/uut/%.o,$(UUT_SRCS))
 # prefixed __stack_chk_fail would not resolve
 UUT_CFLAGS := -std=gnu11 -O2 -g -ffreestanding -fno-builtin -nostdinc \
               -fno-stack-protector -fno-tree-loop-distribute-patterns \
-              -D__is_libk -I$(LIBC_DIR)/include -w
+              -D__is_libk -I$(LIBC_DIR)/include -Wall -Wextra -Werror
 
 TEST_SRCS  := $(wildcard test_*.c) runner.c capture.c
 TEST_OBJS  := $(patsubst %.c,$(BUILD_DIR)/%.o,$(TEST_SRCS))
