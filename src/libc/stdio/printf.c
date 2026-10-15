@@ -6,17 +6,6 @@
 #include <string.h>
 #include <stdint.h>
 
-// Function to print a string to output
-static bool print(const char *data, size_t length) {
-    const unsigned char *bytes = (const unsigned char *)data;
-    for (size_t i = 0; i < length; i++) {
-        if (putchar(bytes[i]) == EOF) {
-            return false;
-        }
-    }
-    return true;
-}
-
 // Convert an unsigned value to digits in the given base; returns the length.
 // Signed values are printed as a '-' followed by their magnitude, so every
 // integer conversion goes through here and INT_MIN needs no special case.
@@ -106,6 +95,8 @@ typedef struct {
 
 // Output state shared by the helpers below
 typedef struct {
+    int (*sink)(char c, void *ctx);
+    void *ctx;
     int written;
     bool failed;
 } out_t;
@@ -117,9 +108,11 @@ static void emit(out_t *out, const char *data, size_t len) {
         out->failed = true;
         return;
     }
-    if (!print(data, len)) {
-        out->failed = true;
-        return;
+    for (size_t i = 0; i < len; i++) {
+        if (out->sink(data[i], out->ctx) == EOF) {
+            out->failed = true;
+            return;
+        }
     }
     out->written += (int)len;
 }
@@ -271,14 +264,18 @@ static void parse_spec(const char **format, spec_t *spec, va_list *args) {
     *format = f;
 }
 
-// Custom printf function
-int printf(const char *restrict fmt, ...) {
+// The formatting engine behind printf, vsnprintf and the kernel's printk:
+// formats `fmt` and passes each character to `sink`, which returns EOF to
+// stop with an error. Returns the number of characters, or -1 on error.
+int vformat(int (*sink)(char c, void *ctx), void *ctx, const char *fmt, va_list args) {
+    // Work on a copy: helpers take a va_list pointer, and the address of a
+    // va_list parameter has the wrong type where va_list is an array (x86_64)
     va_list parameters;
-    va_start(parameters, fmt);
+    va_copy(parameters, args);
 
     // Plain cursor: parse_spec() advances it through a pointer
     const char *format = fmt;
-    out_t out = { 0, false };
+    out_t out = { sink, ctx, 0, false };
 
     while (*format != '\0' && !out.failed) {
         if (*format != '%') {
@@ -367,4 +364,21 @@ int printf(const char *restrict fmt, ...) {
 
     va_end(parameters);
     return out.failed ? -1 : out.written;
+}
+
+static int putchar_sink(char c, void *ctx) {
+    (void)ctx;
+    return putchar((unsigned char)c);
+}
+
+int vprintf(const char *restrict format, va_list args) {
+    return vformat(putchar_sink, NULL, format, args);
+}
+
+int printf(const char *restrict format, ...) {
+    va_list args;
+    va_start(args, format);
+    int written = vprintf(format, args);
+    va_end(args);
+    return written;
 }

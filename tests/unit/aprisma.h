@@ -27,6 +27,7 @@ void aprisma_strrev(char *s);
 /* <stdio.h> */
 int aprisma_printf(const char *format, ...);
 int aprisma_puts(const char *s);
+int aprisma_snprintf(char *buffer, size_t size, const char *format, ...);
 
 /* <stdlib.h> */
 void aprisma_qsort(void *base, size_t count, size_t size, int (*comp)(const void *, const void *));
