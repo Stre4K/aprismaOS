@@ -9,7 +9,7 @@
 
 #include <kernel/shell/commands.h>
 
-#include <kernel/arch/cpu.h>
+#include <kernel/arch/cpumode.h>
 #include <kernel/printk.h>
 
 void cmd_cpumode(int argc, char **argv) {
