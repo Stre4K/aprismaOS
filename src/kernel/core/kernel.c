@@ -37,16 +37,17 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     init_gdt();
     printk("[GDT] Loaded\n");
 
-    memory_map_detect(mb_info_ptr);
-    pmm_init(mb_info_ptr);
-    paging_init();
-    enable_paging(page_directory);
-
-
+    // Load the IDT before touching paging so early faults are reported
+    // instead of triple faulting
     init_idt();
     printk("[IDT] Loaded\n");
 
     register_isr_handler(14, page_fault_handler);
+
+    memory_map_detect(mb_info_ptr);
+    pmm_init(mb_info_ptr);
+    paging_init();
+    enable_paging(page_directory);
 
 
     if (cpuid_supported_check()) {
