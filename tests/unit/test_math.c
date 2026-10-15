@@ -62,19 +62,39 @@ TEST(floor_and_ceil)
     CHECK_NEAR(aprisma_ceil(-2.1), -2.0, EPS);
 }
 
-TEST_KNOWN_BUG(floor_beyond_int_range,
-               "floor/ceil convert through int, so values beyond INT_MAX overflow")
+TEST(floor_beyond_int_range)
 {
     CHECK_NEAR(aprisma_floor(3e9), 3e9, EPS);
     CHECK_NEAR(aprisma_ceil(-3e9), -3e9, EPS);
 }
 
-TEST_KNOWN_BUG(round_halfway_away_from_zero,
-               "round(-2.5) rounds toward zero instead of away from it")
+TEST(round_halfway_away_from_zero)
 {
     CHECK_NEAR(aprisma_round(2.4), 2.0, EPS);
     CHECK_NEAR(aprisma_round(2.5), 3.0, EPS);
     CHECK_NEAR(aprisma_round(-2.5), -3.0, EPS);
+}
+
+TEST(round_just_below_half)
+{
+    // 0.49999999999999994 + 0.5 rounds up to 1.0 in floating point
+    CHECK_NEAR(aprisma_round(0.49999999999999994), 0.0, 0);
+}
+
+TEST(floor_ceil_round_match_host_libc)
+{
+    for (int i = 0; i < 100000; i++) {
+        // Half the inputs from raw bits, half in the range where fractions exist
+        double x = (i % 2) ? random_double_bits()
+                           : ((double)(int64_t)next_random() / 4294967296.0) / (double)(1 + next_random() % 1000);
+        if (!same_double(aprisma_floor(x), floor(x)) ||
+            !same_double(aprisma_ceil(x), ceil(x)) ||
+            !same_double(aprisma_round(x), round(x))) {
+            test_fail(__FILE__, __LINE__, "x=%a: floor %a/%a ceil %a/%a round %a/%a (ours/host)", x,
+                      aprisma_floor(x), floor(x), aprisma_ceil(x), ceil(x), aprisma_round(x), round(x));
+            return;
+        }
+    }
 }
 
 TEST(fmod_positive)
