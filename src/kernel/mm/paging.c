@@ -4,6 +4,7 @@
 // Date: 2026-03-08
 
 #include <kernel/mm/pmm.h>
+#include <kernel/panic.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -43,30 +44,58 @@ void paging_init()
 
 void enable_paging(uint32_t *pd)
 {
-    asm volatile("mov %0, %%cr3" :: "r"(pd));
+    asm volatile("mov %0, %%cr3" :: "r"(pd) : "memory");
 
     uint32_t cr0;
     asm volatile("mov %%cr0, %0" : "=r"(cr0));
 
     cr0 |= 0x80000000;
 
-    asm volatile("mov %0, %%cr0" :: "r"(cr0));
+    asm volatile("mov %0, %%cr0" :: "r"(cr0) : "memory");
 }
 
+static inline void invlpg(uint32_t addr)
+{
+    asm volatile("invlpg (%0)" :: "r"(addr) : "memory");
+}
+
+static int paging_enabled(void)
+{
+    uint32_t cr0;
+    asm volatile("mov %%cr0, %0" : "=r"(cr0));
+    return (cr0 & 0x80000000) != 0;
+}
+
+// Map one 4K page. Only valid once paging is on, since it edits the
+// page tables through the recursive mapping at 0xFFC00000.
 void map_page(uint32_t virt, uint32_t phys)
 {
     uint32_t dir = virt >> 22;
     uint32_t table = (virt >> 12) & 0x3FF;
 
+    if (!paging_enabled())
+        panic("map_page: paging is not enabled");
+
+    // Slot 1023 is the recursive mapping; writing there would corrupt the page directory
+    if (dir == 1023)
+        panic("map_page: cannot map into the recursive mapping region");
+
     uint32_t *pd = PAGE_DIRECTORY;
+    uint32_t *pt = PAGE_TABLE(virt);
 
-    if (!(pd[dir] & 1)) {
-        uint32_t *new_table = pmm_alloc_page();
-        memset(new_table, 0, 4096);
+    if (!(pd[dir] & PAGE_PRESENT)) {
+        uint32_t new_table = (uint32_t)(uintptr_t)pmm_alloc_page();
+        if (new_table == 0)
+            panic("map_page: out of physical memory for page table");
 
-        pd[dir] = ((uint32_t)new_table) | 3;
+        pd[dir] = new_table | PAGE_PRESENT | PAGE_RW;
+
+        // The table's physical page may not be mapped anywhere, so clear it
+        // through its recursive mapping instead of its physical address
+        invlpg((uint32_t)(uintptr_t)pt);
+        memset(pt, 0, 4096);
     }
 
-    uint32_t *pt = PAGE_TABLE(virt);
-    pt[table] = phys | 3;
+    pt[table] = (phys & ~0xFFF) | PAGE_PRESENT | PAGE_RW;
+    invlpg(virt);
 }
