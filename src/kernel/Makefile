@@ -97,12 +97,12 @@ install: install-headers install-kernel
 #install-headers:
 #	@mkdir -p $(SYSROOT)/include
 #	@cp -R -p $(SRC_DIR)/include/. $(SYSROOT)/include/
+# Copy on every build so header edits reach the sysroot (cp -p keeps the
+# timestamps, so unchanged headers do not trigger rebuilds)
 install-headers:
-	@if [ ! -d $(SYSROOT)/include/kernel ]; then \
-		echo "$(YELLOW)[kernel] Copying headers$(RESET)"; \
-		mkdir -p $(SYSROOT)/include >/dev/null;\
-		cp -R -p $(SRC_DIR)/include/. $(SYSROOT)/include/ >/dev/null; \
-	fi
+	@echo "$(YELLOW)[kernel] Copying headers$(RESET)"
+	@mkdir -p $(SYSROOT)/include
+	@cp -R -p $(SRC_DIR)/include/. $(SYSROOT)/include/
 
 install-kernel: $(BIN)
 	@mkdir -p $(SYSROOT)/boot
