@@ -24,6 +24,7 @@ void isr_common_handler(void* regs);
 void regs_dump(regs_t *regs);
 void enable_interrupts(void);
 void disable_interrupts(void);
+void enable_interrupts_and_halt(void);
 
 #endif
 

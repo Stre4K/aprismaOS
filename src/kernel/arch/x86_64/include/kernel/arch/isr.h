@@ -25,6 +25,7 @@ void unregister_irq_handler(int irq);
 void isr_common_handler(void* regs);
 void enable_interrupts(void);
 void disable_interrupts(void);
+void enable_interrupts_and_halt(void);
 
 /* Print the saved registers of an interrupt frame (arch specific) */
 void regs_dump(regs_t *regs);

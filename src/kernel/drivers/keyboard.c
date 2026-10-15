@@ -134,17 +134,52 @@ bool is_ctrl_release(uint8_t sc) {
 }
 
 /* ======================================================================
- * Keyboard interrupt handler
+ * Scancode buffer
+ *
+ * The interrupt handler only stores raw scancodes here. Decoding them and
+ * running the shell happens in keyboard_process(), called from the kernel's
+ * main loop with interrupts enabled. One producer (the IRQ handler, which
+ * only writes kbd_head) and one consumer (keyboard_process, which only
+ * writes kbd_tail) need no lock.
  * ====================================================================== */
+
+#define KBD_BUFFER_SIZE 256  // power of two, so the indices can wrap freely
+
+static volatile uint8_t kbd_buffer[KBD_BUFFER_SIZE];
+static volatile uint32_t kbd_head;  // next slot to write
+static volatile uint32_t kbd_tail;  // next slot to read
 
 static void keyboard_irq_handler(regs_t *regs) {
     (void)regs;
-    uint8_t sc = ps2_read();
 
+    // A spurious or already handled interrupt has nothing to read, and
+    // waiting for data here would stall every interrupt
+    if (ps2_has_data()) {
+        uint8_t sc = (uint8_t)ps2_read();
+        uint32_t head = kbd_head;
+
+        // Drop the scancode if the buffer is full
+        if (head - kbd_tail < KBD_BUFFER_SIZE) {
+            kbd_buffer[head % KBD_BUFFER_SIZE] = sc;
+            kbd_head = head + 1;  // publish only after the data is stored
+        }
+    }
+
+    pic_send_eoi(KBD_IRQ);
+}
+
+bool keyboard_has_input(void) {
+    return kbd_head != kbd_tail;
+}
+
+/* ======================================================================
+ * Scancode decoding (main loop context)
+ * ====================================================================== */
+
+static void keyboard_handle_scancode(uint8_t sc) {
     // Handle extended scancode prefix
     if (sc == 0xE0) {
         extended_scancode = 1;
-        pic_send_eoi(KBD_IRQ);
         return;
     }
 
@@ -152,10 +187,8 @@ static void keyboard_irq_handler(regs_t *regs) {
     if (extended_scancode) {
         extended_scancode = 0;
         handle_extended_scancode(sc);
-        pic_send_eoi(KBD_IRQ);
         return;
     }
-
 
     if (is_shift_press(sc)) {
         shift_pressed = 1;
@@ -172,12 +205,15 @@ static void keyboard_irq_handler(regs_t *regs) {
             handle_key_press(sc, shift_pressed);
         }
     }
+    // other key releases are ignored
+}
 
-    if (sc & 0x80) {
-        /* key release - ignore for now */
+void keyboard_process(void) {
+    while (kbd_tail != kbd_head) {
+        uint8_t sc = kbd_buffer[kbd_tail % KBD_BUFFER_SIZE];
+        kbd_tail++;
+        keyboard_handle_scancode(sc);  // may run a whole shell command
     }
-        /* Tell PIC we're done */
-    pic_send_eoi(KBD_IRQ); // IRQ1
 }
 
 
@@ -191,11 +227,11 @@ void keyboard_init(void) {
     register_irq_handler(KBD_IRQ, keyboard_irq_handler);
 
     // Enable scanning (keyboard command 0xF4)
-    ps2_write(KBD_CMD_ENABLE_SCANNING);
-
-    uint8_t ack = ps2_read();
+    int ack = ps2_write(KBD_CMD_ENABLE_SCANNING) ? ps2_read() : -1;
     if (ack == PS2_RESP_ACK) {
         printk("[KEYBOARD] Initialized successfully\n");
+    } else if (ack < 0) {
+        printk("[KEYBOARD] No keyboard responded\n");
     } else {
         printk("[KEYBOARD] Init error: 0x%02X\n", ack);
     }
@@ -203,4 +239,3 @@ void keyboard_init(void) {
     /* mask/unmask IRQ1 as needed. We'll clear the mask for IRQ1 */
     pic_clear_mask_irq(KBD_IRQ);
 }
-
