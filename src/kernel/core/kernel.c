@@ -68,8 +68,8 @@ void kernel_main(uint32_t magic, uintptr_t mb_info_phys) {
     pic_init();
     pit_init();
 
-    ps2_controller_init();
-    keyboard_init();
+    if (ps2_controller_init())
+        keyboard_init();
 
 
     // Currently unused
