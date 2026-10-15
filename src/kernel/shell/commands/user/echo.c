@@ -13,7 +13,7 @@
 
 void cmd_echo(int argc, char **argv) {
     for (int i = 1; i < argc; i++) {
-        printk("%s ", argv[i]);
+        printk(i > 1 ? " %s" : "%s", argv[i]);  // spaces only between words
     }
     printk("\n");
 }
