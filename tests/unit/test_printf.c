@@ -70,8 +70,7 @@ TEST(printf_pointer)
     CHECK_PRINTF("(nil)", "%p", (void *)0);
 }
 
-TEST_KNOWN_BUG(printf_null_string,
-               "%s calls strlen(NULL)")
+TEST(printf_null_string)
 {
     CHECK_PRINTF("(null)", "%s", (char *)NULL);
 }

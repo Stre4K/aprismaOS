@@ -150,6 +150,7 @@ int printf(const char *restrict format, ...) {
             }
             case 's': {  // String
                 const char *str = va_arg(parameters, const char *);
+                if (str == NULL) str = "(null)";
                 size_t len = strlen(str);
                 if (maxrem < len) {
                     errno = EOVERFLOW;
