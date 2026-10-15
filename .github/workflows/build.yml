@@ -160,20 +160,28 @@ jobs:
         include:
           - artifact: iso-amd64
             is_iso: true
+            arch: i386
           - artifact: kernel-amd64
             is_iso: false
+            arch: i386
           - artifact: iso-x86_64
             is_iso: true
+            arch: x86_64
           - artifact: kernel-x86_64
             is_iso: false
+            arch: x86_64
           - artifact: iso-arm64-grub
             is_iso: true
+            arch: i386
           - artifact: kernel-arm64
             is_iso: false
+            arch: i386
           - artifact: iso-macos
             is_iso: true
+            arch: i386
           - artifact: kernel-macos
             is_iso: false
+            arch: i386
 
     steps:
       - uses: actions/checkout@v4
@@ -204,6 +212,7 @@ jobs:
             binutils \
             genisoimage \
             grub-pc-bin \
+            qemu-system-x86 \
             qemu-utils
 
       # Inspect the artifact
@@ -263,6 +272,18 @@ jobs:
                 fi
             fi
           fi
+
+      # Boot the artifact in QEMU and check what the kernel prints
+      - name: Boot test ${{ matrix.artifact }}
+        run: |
+          if [ "${{ matrix.is_iso }}" = "true" ]; then
+            IMAGE="--iso ${{ matrix.artifact }}/aprisma.iso"
+          else
+            IMAGE="--kernel ${{ matrix.artifact }}/aprisma.kernel"
+          fi
+          python3 scripts/qemu_boot_test.py --arch ${{ matrix.arch }} $IMAGE --timeout 120 \
+            --run "test heap" "heap test: peak heap [0-9]+ KB, passed" \
+            --run "version" "AprismaOS v[^ ]+ \(${{ matrix.arch == 'x86_64' && 'x86_64' || 'i686' }}\)"
 
           # Optional: Quick disk image metadata check (works for both ISO and kernel images)
       - name: Inspect disk/image metadata
