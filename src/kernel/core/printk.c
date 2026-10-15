@@ -9,6 +9,7 @@
 #include <kernel/drivers/serial.h>
 #include <kernel/drivers/tty.h>
 #include <kernel/printk.h>
+#include <kernel/sched.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -24,11 +25,14 @@ void printk(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
 
+    // One printk is never interleaved with another thread's output
+    preempt_disable();
     terminal_set_defer_render(true); // batch all output
 
     vformat(console_sink, NULL, fmt, args);
 
     terminal_set_defer_render(false);
     terminal_render(); // render all output at once
+    preempt_enable();
     va_end(args);
 }

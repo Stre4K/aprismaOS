@@ -7,6 +7,7 @@
 #include <kernel/multiboot.h>
 #include <kernel/panic.h>
 #include <kernel/arch/memlayout.h>
+#include <kernel/arch/irq.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -174,13 +175,18 @@ void pmm_init(multiboot_info_t *mbi) {
     }
 }
 
+// Allocation and freeing disable interrupts: pages are also freed from
+// interrupt context (e.g. stacks of exited threads)
 void *pmm_alloc_page() {
+    unsigned long flags = irq_save();
     for (uint32_t i = 0; i < MAX_PAGES; i++) {
         if (!test_bit(bitmap, i)) {
             set_bit(bitmap, i);
+            irq_restore(flags);
             return (void *)(uintptr_t)(i * PAGE_SIZE);
         }
     }
+    irq_restore(flags);
     return NULL;
 }
 
@@ -195,10 +201,13 @@ void pmm_free_page(void *page) {
     if (index >= MAX_PAGES || !test_bit(usable, index))
         panic("pmm_free_page: address is not usable RAM");
 
+    unsigned long flags = irq_save();
+
     if (!test_bit(bitmap, index))
         panic("pmm_free_page: double free");
 
     clear_bit(bitmap, index);
+    irq_restore(flags);
 }
 
 /* Number of usable RAM pages managed by the PMM */

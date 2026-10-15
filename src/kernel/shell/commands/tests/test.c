@@ -14,6 +14,7 @@
 #include <kernel/mm/heap.h>
 #include <kernel/mm/pmm.h>
 #include <kernel/arch/timer.h>
+#include <kernel/sched.h>
 #include <string.h>
 #include <stdint.h>
 
@@ -148,6 +149,148 @@ static void test_scroll(void)
     printk("scroll test done\n");
 }
 
+#ifdef CONFIG_SCHED
+/* ---- test threads ---- */
+
+static volatile uint64_t spin_count;
+static volatile bool spin_stop;
+
+// Never yields: it only gets the CPU if the scheduler preempts others
+static void spinner(void *arg)
+{
+    (void)arg;
+    while (!spin_stop)
+        spin_count++;
+}
+
+static volatile int wake_order[3];
+static volatile int wake_count;
+
+static void sleeper(void *arg)
+{
+    int ms = (int)(intptr_t)arg;
+    thread_sleep(ms);
+    preempt_disable();
+    wake_order[wake_count++] = ms;
+    preempt_enable();
+}
+
+static volatile int workers_done;
+
+static void worker(void *arg)
+{
+    (void)arg;
+    __atomic_fetch_add(&workers_done, 1, __ATOMIC_SEQ_CST);
+}
+
+// Sleep in small steps until *value reaches target or `ms` pass
+static bool wait_for_value(volatile int *value, int target, int ms)
+{
+    for (int waited = 0; *value < target && waited < ms; waited += 10)
+        thread_sleep(10);
+    return *value >= target;
+}
+
+static size_t thread_count(void)
+{
+    thread_info_t dummy;
+    return thread_list(&dummy, 0);
+}
+
+static void test_threads(void)
+{
+    int errors = 0;
+
+    // 1. Preemption: busy-wait here without yielding; a thread that also
+    // never yields must still get CPU time
+    spin_count = 0;
+    spin_stop = false;
+    if (!thread_create("spinner", spinner, NULL)) {
+        printk("threads test: cannot create a thread\n");
+        return;
+    }
+    uint64_t start = pit_get_ticks();
+    while (pit_get_ticks() - start < 30)
+        ;
+    uint64_t spins = spin_count;
+    spin_stop = true;
+    if (spins == 0) {
+        printk("threads test: the spinner never ran (no preemption)\n");
+        errors++;
+    }
+
+    // 2. Sleeping threads wake in order of their sleep time
+    wake_count = 0;
+    thread_create("sleep60", sleeper, (void *)(intptr_t)60);
+    thread_create("sleep20", sleeper, (void *)(intptr_t)20);
+    thread_create("sleep40", sleeper, (void *)(intptr_t)40);
+    if (!wait_for_value(&wake_count, 3, 2000)) {
+        printk("threads test: only %d of 3 sleepers woke up\n", wake_count);
+        errors++;
+    } else if (wake_order[0] != 20 || wake_order[1] != 40 || wake_order[2] != 60) {
+        printk("threads test: sleepers woke in order %d %d %d, expected 20 40 60\n",
+               wake_order[0], wake_order[1], wake_order[2]);
+        errors++;
+    }
+
+    // 3. Exited threads are freed: thread count, pages and heap return
+    // to where they were. Give the threads above time to exit first.
+    thread_sleep(50);
+    size_t threads_before = thread_count();
+    uint32_t pages_before = pmm_free_pages();
+    kheap_stats_t heap_before;
+    kheap_get_stats(&heap_before);
+
+    workers_done = 0;
+    for (int i = 0; i < 20; i++) {
+        if (!thread_create("worker", worker, NULL)) {
+            printk("threads test: cannot create worker %d\n", i);
+            errors++;
+            break;
+        }
+    }
+    if (!wait_for_value(&workers_done, 20, 2000)) {
+        printk("threads test: only %d of 20 workers ran\n", workers_done);
+        errors++;
+    }
+    thread_sleep(50);  // let the scheduler free them
+
+    kheap_stats_t heap_after;
+    kheap_get_stats(&heap_after);
+    if (thread_count() != threads_before || pmm_free_pages() != pages_before ||
+        heap_after.used_blocks != heap_before.used_blocks) {
+        printk("threads test: exited threads leaked (threads %u -> %u, free pages %u -> %u, heap blocks %u -> %u)\n",
+               (unsigned)threads_before, (unsigned)thread_count(), pages_before, pmm_free_pages(),
+               (unsigned)heap_before.used_blocks, (unsigned)heap_after.used_blocks);
+        errors++;
+    }
+
+    printk("threads test: %llu spinner loops while preempted, %s\n",
+           (unsigned long long)spins, errors ? "FAILED" : "passed");
+}
+
+// Recurse until the thread's stack runs into its guard page
+static int stack_eater(int depth)
+{
+    volatile char buffer[256];
+    buffer[0] = (char)depth;
+    return depth > 0 ? stack_eater(depth - 1) + buffer[0] : 0;
+}
+
+static void overflow_thread(void *arg)
+{
+    (void)arg;
+#if defined(__x86_64__)
+    printk("stack overflow test: recursing, expect a double fault\n");
+#else
+    // i386 has no Interrupt Stack Table: the double fault handler would
+    // need the overflowed stack too, so the CPU resets (triple fault)
+    printk("stack overflow test: recursing, expect a reset (triple fault) on i386\n");
+#endif
+    stack_eater(1000000);
+}
+#endif // CONFIG_SCHED
+
 void cmd_test(int argc, char **argv)
 {
     if (argc < 2)
@@ -165,6 +308,17 @@ void cmd_test(int argc, char **argv)
     {
         printk("printk works!\n");
     }
+#ifdef CONFIG_SCHED
+    else if (strcmp(argv[1], "threads") == 0)
+    {
+        test_threads();
+    }
+    else if (strcmp(argv[1], "stackoverflow") == 0)
+    {
+        thread_create("overflow", overflow_thread, NULL);
+        thread_sleep(500);
+    }
+#endif
     else if (strcmp(argv[1], "timer") == 0)
     {
         test_timer();

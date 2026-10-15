@@ -5,6 +5,6 @@
 #ifndef __KERNEL_PANIC_H__
 #define __KERNEL_PANIC_H__
 
-void panic(const char *msg);
+__attribute__((noreturn)) void panic(const char *msg);
 
 #endif // __KERNEL_PANIC_H__

@@ -51,5 +51,10 @@ bool keyboard_has_input(void);
 // loop, not from an interrupt handler: it can run whole shell commands.
 void keyboard_process(void);
 
+// Wait until scancodes are buffered: blocks the calling thread with the
+// scheduler, otherwise halts until the next interrupt (and may return
+// without input). Returns with interrupts enabled.
+void keyboard_wait_for_input(void);
+
 
 #endif

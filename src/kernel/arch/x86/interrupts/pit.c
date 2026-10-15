@@ -3,6 +3,7 @@
 #include <kernel/arch/pic.h>
 #include <kernel/arch/isr.h>
 #include <kernel/printk.h>
+#include <kernel/sched.h>
 #include <stdint.h>
 
 
@@ -70,11 +71,15 @@ volatile uint64_t pit_timer = 0;
 void pit_interrupt_handler(regs_t* regs) {
     (void)regs;
     pit_ticks++;
-    if (pit_ticks % 100 == 0) {
+    if (pit_ticks % PIT_FREQUENCY == 0) {
        pit_timer++;
-       //printk("PIT timer: %lld\n", pit_timer);
     }
+    // Acknowledge before the scheduler may switch threads, or the PIC
+    // would hold back further timer interrupts until this thread returns
     pic_send_eoi(PIT_IRQ);
+#ifdef CONFIG_SCHED
+    sched_tick();
+#endif
 }
 /* ========================================
  * PIT getters
@@ -98,7 +103,7 @@ void pit_init(void) {
     register_irq_handler(PIT_IRQ, pit_interrupt_handler);
 
     // set frequency
-    pit_set_frequency(100); // 100 Hz
+    pit_set_frequency(PIT_FREQUENCY);
 
     // Clear mask for irq0 on PIC
     pic_clear_mask_irq(PIT_IRQ);

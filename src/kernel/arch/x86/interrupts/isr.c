@@ -3,6 +3,7 @@
 #include <kernel/arch/pic.h>
 #include <kernel/arch/timer.h>
 #include <kernel/printk.h>
+#include <kernel/sched.h>
 #include <stdint.h>
 
 /* ========================================================
@@ -79,13 +80,15 @@ void isr_common_handler(void* regs) {
         if (irq < MAX_IRQS && irq_handlers[irq]) {
             // call the registered handler; handler MUST call lapic_eoi()/pic_send_eoi()
             irq_handlers[irq](regs);
-            return;
         } else {
-            // spurious: just send EOI if necessary in irq handler region (we do that in PIC code)
             // no handler registered -> send EOI to avoid blocking further interrupts
             pic_send_eoi(irq);
-            return;
         }
+#ifdef CONFIG_SCHED
+        // The interrupt is acknowledged; switch threads here if one is due
+        sched_irq_exit();
+#endif
+        return;
     }
 
     printk("Unhandled interrupt: %d\n", int_no);
