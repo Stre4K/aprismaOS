@@ -26,7 +26,7 @@ void kernel_main(uint32_t magic, uintptr_t mb_info_phys) {
     terminal_initialize();
 
     if (magic != 0x2BADB002) {
-        printk("Bad magic number: %08x\n", magic);
+        printk("Bad magic number: 0x%08x\n", magic);
         // Not booted by Multiboot
         while (1);
     }

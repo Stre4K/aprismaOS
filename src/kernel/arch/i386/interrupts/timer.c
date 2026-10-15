@@ -66,7 +66,7 @@ uint32_t lapic_timer_calibrate(void) {
 volatile uint32_t timer_ticks = 0;
 void timer_interrupt_handler(regs_t* regs) {
     (void)regs;
-    printk("Timer: %lld\n", timer_ticks++);
+    printk("Timer: %u\n", timer_ticks++);
     lapic_eoi(); // signal end of interrupt
 }
 

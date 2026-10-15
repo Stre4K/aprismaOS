@@ -21,7 +21,7 @@ void print_multiboot_info(multiboot_info_t *mbi) {
     }
 
     if (mbi->flags & 0x2) {
-        printk("Boot device: %x\n", mbi->boot_device);
+        printk("Boot device: 0x%x\n", mbi->boot_device);
     }
 
     if (mbi->flags & 0x4 && mbi->cmdline) {
@@ -32,7 +32,7 @@ void print_multiboot_info(multiboot_info_t *mbi) {
         multiboot_mod_t *mods = (multiboot_mod_t *)P2V(mbi->mods_addr);
         printk("Modules loaded: %u\n", mbi->mods_count);
         for (uint32_t i = 0; i < mbi->mods_count; i++) {
-            printk("Module %u: %x - %x\n", i, mods[i].mod_start,
+            printk("Module %u: 0x%x - 0x%x\n", i, mods[i].mod_start,
                    mods[i].mod_end);
             if (mods[i].cmdline) {
                 printk("Module cmdline: %s\n", (char *)P2V(mods[i].cmdline));
@@ -46,7 +46,7 @@ void print_multiboot_info(multiboot_info_t *mbi) {
         printk("Memory map:\n");
 
         while ((uintptr_t)mmap < end) {
-            printk("%llx - %llx, type=%u\n", mmap->addr, mmap->addr + mmap->len,
+            printk("0x%llx - 0x%llx, type=%u\n", mmap->addr, mmap->addr + mmap->len,
                    mmap->type);
             mmap = (multiboot_mmap_entry_t *)((uint8_t *)mmap + mmap->size + 4);
         }
