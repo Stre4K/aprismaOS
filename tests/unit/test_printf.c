@@ -38,33 +38,28 @@ TEST(printf_signed_decimal)
     CHECK_PRINTF("2147483647", "%d", INT_MAX);
 }
 
-TEST_KNOWN_BUG(printf_int_min,
-               "negating INT_MIN overflows, so the digits come out as garbage")
+TEST(printf_int_min)
 {
     CHECK_PRINTF("-2147483648", "%d", INT_MIN);
 }
 
-TEST_KNOWN_BUG(printf_unsigned_above_int_max,
-               "%u is converted with the signed itoa()")
+TEST(printf_unsigned_above_int_max)
 {
     CHECK_PRINTF("3000000000", "%u", 3000000000u);
     CHECK_PRINTF("4294967295", "%u", UINT_MAX);
 }
 
-TEST_KNOWN_BUG(printf_hex_lowercase,
-               "%x is converted as a signed int; values >= 0x80000000 print garbage")
+TEST(printf_hex_lowercase)
 {
     CHECK_PRINTF("ff 0 deadbeef", "%x %x %x", 255, 0, 0xdeadbeefu);
 }
 
-TEST_KNOWN_BUG(printf_hex_uppercase,
-               "%X prints lowercase digits")
+TEST(printf_hex_uppercase)
 {
     CHECK_PRINTF("FF", "%X", 255);
 }
 
-TEST_KNOWN_BUG(printf_hex_of_negative_int,
-               "%x is converted as a signed int; negative remainders print garbage")
+TEST(printf_hex_of_negative_int)
 {
     CHECK_PRINTF("ffffffff", "%x", -1);
 }

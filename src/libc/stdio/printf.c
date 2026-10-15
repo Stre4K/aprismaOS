@@ -17,6 +17,27 @@ static bool print(const char *data, size_t length) {
     return true;
 }
 
+// Convert an unsigned value to digits in the given base; returns the length.
+// Signed values are printed as a '-' followed by their magnitude, so every
+// integer conversion goes through here and INT_MIN needs no special case.
+static size_t utoa(unsigned long long value, char *str, unsigned base, bool uppercase) {
+    const char *digits = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
+    char buffer[64];
+    size_t i = 0;
+
+    do {
+        buffer[i++] = digits[value % base];
+        value /= base;
+    } while (value != 0);
+
+    for (size_t j = 0; j < i; j++) {
+        str[j] = buffer[i - j - 1];
+    }
+    str[i] = '\0';
+    return i;
+}
+
+#ifndef LIBK_NO_FLOAT
 // Function to convert integer to string
 static void itoa(int value, char *str, int base) {
     char buffer[32];  // Temporary buffer
@@ -51,7 +72,6 @@ static void itoa(int value, char *str, int base) {
     str[j] = '\0';
 }
 
-#ifndef LIBK_NO_FLOAT
 // Function to convert float to string
 static void ftoa(double value, char *str, int precision) {
     int int_part = (int)value;
@@ -143,7 +163,11 @@ int printf(const char *restrict format, ...) {
             case 'i': {  // Signed integer
                 int num = va_arg(parameters, int);
                 char buffer[32];
-                itoa(num, buffer, 10);
+                // Negate as unsigned: -INT_MIN does not fit in an int
+                unsigned int magnitude = num < 0 ? 0u - (unsigned int)num : (unsigned int)num;
+                size_t sign = 0;
+                if (num < 0) buffer[sign++] = '-';
+                utoa(magnitude, buffer + sign, 10, false);
                 size_t len = strlen(buffer);
                 if (maxrem < len) {
                     errno = EOVERFLOW;
@@ -156,7 +180,7 @@ int printf(const char *restrict format, ...) {
             case 'u': {  // Unsigned integer
                 unsigned int num = va_arg(parameters, unsigned int);
                 char buffer[32];
-                itoa(num, buffer, 10);
+                utoa(num, buffer, 10, false);
                 size_t len = strlen(buffer);
                 if (maxrem < len) {
                     errno = EOVERFLOW;
@@ -183,9 +207,9 @@ int printf(const char *restrict format, ...) {
 #endif // LIBK_NO_FLOAT
             case 'x':
             case 'X': {  // Hexadecimal
-                int num = va_arg(parameters, int);
+                unsigned int num = va_arg(parameters, unsigned int);
                 char buffer[32];
-                itoa(num, buffer, 16);
+                utoa(num, buffer, 16, *format == 'X');
                 size_t len = strlen(buffer);
                 if (maxrem < len) {
                     errno = EOVERFLOW;
