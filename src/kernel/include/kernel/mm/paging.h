@@ -21,4 +21,31 @@ uintptr_t unmap_page(uintptr_t virt);
 // Physical address behind a virtual address (0 if unmapped)
 uintptr_t virt_to_phys(uintptr_t virt);
 
+#ifdef CONFIG_USERMODE
+#include <stdbool.h>
+
+// Per-process address spaces. A space is the physical address of its
+// top-level page table; the kernel half is shared by every space.
+
+// The kernel's own space (used by kernel threads)
+uintptr_t paging_kernel_space(void);
+
+// New space with the kernel half and an empty user half; 0 when out of memory
+uintptr_t paging_create_space(void);
+
+// Free every user page and page table of a space, then the space itself.
+// Must not be the active space.
+void paging_destroy_space(uintptr_t space);
+
+// Load a space into the MMU (no-op if it is already active)
+void paging_switch_space(uintptr_t space);
+
+// Map one user page into a space; false if the address is not user space,
+// is already mapped or page tables cannot be allocated
+bool paging_map_user(uintptr_t space, uintptr_t virt, uintptr_t phys, bool writable);
+
+// True if the current space lets user mode read (or write) this address
+bool paging_user_access_ok(uintptr_t virt, bool write);
+#endif
+
 #endif // __KERNEL_MM_PAGING_H__
