@@ -236,8 +236,7 @@ TEST(exp_basic)
     CHECK_NEAR(aprisma_exp(-1.0), 0.36787944117, 1e-6);
 }
 
-TEST_KNOWN_BUG(exp_overflow_returns_infinity,
-               "(int)x overflows for huge x and the Taylor series loop never ends")
+TEST(exp_overflow_returns_infinity)
 {
     CHECK(isinf(aprisma_exp(3e9)));
 }
@@ -248,8 +247,7 @@ TEST(log_basic)
     CHECK_NEAR(aprisma_log(2.71828182846), 1.0, 1e-6);
 }
 
-TEST_KNOWN_BUG(log_large_values,
-               "the initial guess x-1 overflows exp() for x above ~710, giving NaN")
+TEST(log_large_values)
 {
     CHECK_NEAR(aprisma_log(1000.0), 6.90775527898, 1e-6);
 }
@@ -301,6 +299,52 @@ TEST(ldexp_matches_host_libc)
             ok = fabs(ours - host) <= nextafter(fabs(host), INFINITY) - fabs(host);
         if (!ok) {
             test_fail(__FILE__, __LINE__, "ldexp(%a, %d): host %a, got %a", x, n, host, ours);
+            return;
+        }
+    }
+}
+
+TEST(exp_special_values)
+{
+    CHECK(isinf(aprisma_exp(INFINITY)));
+    CHECK(aprisma_exp(-INFINITY) == 0.0);
+    CHECK(aprisma_exp(-1000.0) == 0.0);
+    CHECK(isnan(aprisma_exp(NAN)));
+}
+
+TEST(exp_matches_long_double_reference)
+{
+    for (int i = 0; i < 100000; i++) {
+        double x = ((double)(int64_t)next_random() / 9223372036854775808.0) * 709.0;
+        double reference = (double)expl((long double)x);
+        uint64_t ulps = ulp_distance(aprisma_exp(x), reference);
+        if (ulps > 1) {
+            test_fail(__FILE__, __LINE__, "exp(%a): reference %a, got %a (%llu ulp)",
+                      x, reference, aprisma_exp(x), (unsigned long long)ulps);
+            return;
+        }
+    }
+}
+
+TEST(log_special_values)
+{
+    CHECK(isnan(aprisma_log(-1.0)));
+    CHECK(isinf(aprisma_log(0.0)) && aprisma_log(0.0) < 0);
+    CHECK(isinf(aprisma_log(INFINITY)));
+    CHECK_NEAR(aprisma_log10(1000.0), 3.0, 1e-15);
+}
+
+TEST(log_matches_long_double_reference)
+{
+    for (int i = 0; i < 100000; i++) {
+        // Half the inputs near 1, where the result is small and hardest to get right
+        double x = (i % 2) ? random_positive_double()
+                           : 1.0 + ((double)(int64_t)next_random() / 9223372036854775808.0) * 0.3;
+        double reference = (double)logl((long double)x);
+        uint64_t ulps = ulp_distance(aprisma_log(x), reference);
+        if (ulps > 1) {
+            test_fail(__FILE__, __LINE__, "log(%a): reference %a, got %a (%llu ulp)",
+                      x, reference, aprisma_log(x), (unsigned long long)ulps);
             return;
         }
     }

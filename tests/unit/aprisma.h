@@ -50,6 +50,7 @@ double aprisma_cbrt(double x);
 double aprisma_pow(double base, double exponent);
 double aprisma_exp(double x);
 double aprisma_log(double x);
+double aprisma_log10(double x);
 double aprisma_frexp(double x, int *exponent);
 double aprisma_ldexp(double x, int exponent);
 

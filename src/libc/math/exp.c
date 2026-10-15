@@ -5,37 +5,37 @@
 
 #include <math.h>
 
-// Compute e^x for small values using Taylor series
-double exp_taylor(double x) {
-    double sum = 1.0;
-    double term = 1.0;
-    int n = 1;
+// ln 2 split into a high part with trailing zero bits (so k * LN2_HI is
+// exact) and the remainder, as in fdlibm
+#define LN2_HI  6.93147180369123816490e-01
+#define LN2_LO  1.90821492927058770002e-10
+#define INV_LN2 1.44269504088896338700e+00
 
-    while (term > 1e-10 || term < -1e-10) {  // Stop when term is too small
-        term *= x / n;
-        sum += term;
-        n++;
-    }
+#define EXP_OVERFLOW   709.782712893383973096   // above this e^x is inf
+#define EXP_UNDERFLOW -745.13321910194110842    // below this e^x is 0
 
-    return sum;
-}
-
-// Compute e^x for any x
+// e^x: write x = k * ln2 + r with |r| <= ln2 / 2, so e^x = 2^k * e^r, and
+// compute e^r with a short Taylor series
 double exp(double x) {
-    if (x < 0) return 1.0 / exp(-x);  // Handle negative x
-
-    int int_part = (int)x;   // Integer part
-    double frac_part = x - int_part;  // Fractional part
-
-    // Compute e^int_part using fast exponentiation
-    double int_exp = 1.0;
-    const double e = 2.718281828459045;
-    for (int i = 0; i < int_part; i++) {
-        int_exp *= e;
+    if (isnan(x)) {
+        return x;
+    }
+    if (x > EXP_OVERFLOW) {
+        return INFINITY;
+    }
+    if (x < EXP_UNDERFLOW) {
+        return 0.0;
     }
 
-    // Compute e^frac_part using Taylor series
-    double frac_exp = exp_taylor(frac_part);
+    int k = (int)(x * INV_LN2 + (x < 0 ? -0.5 : 0.5));
+    double r = (x - k * LN2_HI) - k * LN2_LO;
 
-    return int_exp * frac_exp;  // Combine both parts
+    // 1 + r(1 + r/2(1 + r/3(...))) up to r^18 / 18!, far below one ulp
+    // for |r| <= 0.35
+    double p = 1.0;
+    for (int n = 18; n >= 1; n--) {
+        p = 1.0 + r * p / n;
+    }
+
+    return ldexp(p, k);
 }
