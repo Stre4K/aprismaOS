@@ -1,25 +1,27 @@
 #include <kernel/multiboot.h>
+#include <kernel/drivers/tty.h>
+#include <kernel/printk.h>
+#include <kernel/mm/memory_map.h>
 #include <kernel/arch/gdt.h>
 #include <kernel/arch/idt.h>
 #include <kernel/arch/isr.h>
-#include <kernel/arch/cpuid.h>
-#include <kernel/arch/lapic.h>
 #include <kernel/arch/pic.h>
-#include <kernel/arch/portio.h>
+#include <kernel/arch/timer.h>
+#include <kernel/arch/cpuid.h>
 #include <kernel/drivers/keyboard.h>
 #include <kernel/drivers/ps2.h>
-#include <kernel/arch/timer.h>
-#include <kernel/drivers/tty.h>
-#include <kernel/printk.h>
-#include <kernel/shell/commands.h>
-#include <kernel/mm/memory_map.h>
+
+#include <kernel/arch/memlayout.h>
 #include <kernel/mm/fault.h>
 #include <kernel/mm/paging.h>
-#include <kernel/mm/memory_map.h>
 #include <kernel/mm/pmm.h>
 #include <kernel/mm/heap.h>
-void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
+
+// mb_info_phys is the physical address the bootloader passed in EBX
+void kernel_main(uint32_t magic, uintptr_t mb_info_phys) {
     disable_interrupts();
+
+    multiboot_info_t *mb_info_ptr = P2V(mb_info_phys);
 
     terminal_initialize();
 
@@ -35,6 +37,11 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     memory_map_detect(mb_info_ptr);
     printk("address of multiboot_info: %p\n", mb_info_ptr);
     //print_multiboot_info((multiboot_info_t *)mb_info_ptr);
+
+#if defined(__x86_64__)
+    printk("[x86_64] Running in 64-bit long mode\n");
+#endif
+
     init_gdt();
     printk("[GDT] Loaded\n");
 
@@ -48,11 +55,10 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     memory_map_detect(mb_info_ptr);
     pmm_init(mb_info_ptr);
     paging_init();
-    enable_paging(page_directory);
+    printk("[PAGING] Enabled\n");
 
     kheap_init();
     printk("[HEAP] Initialized\n");
-
 
     if (cpuid_supported_check()) {
         cpuid_init();
@@ -74,6 +80,6 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     enable_interrupts();
 
     while(1) {
-        continue;
+        __asm__ volatile("hlt");
     }
 }

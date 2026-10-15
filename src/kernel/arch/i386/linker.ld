@@ -58,4 +58,5 @@ SECTIONS
        never hands out pages that belong to the kernel image */
     . = ALIGN(4K);
     kernel_end = .;
+    kernel_end_phys = kernel_end;  /* identity mapped: same as virtual */
 }

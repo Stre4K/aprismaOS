@@ -1,4 +1,5 @@
 #include <kernel/multiboot.h>
+#include <kernel/arch/memlayout.h>
 #include <kernel/printk.h>  // needed for printk
 
 static multiboot_info_t *g_multiboot_info = 0;
@@ -24,27 +25,27 @@ void print_multiboot_info(multiboot_info_t *mbi) {
     }
 
     if (mbi->flags & 0x4 && mbi->cmdline) {
-        printk("Command line: %s\n", (char *)mbi->cmdline);
+        printk("Command line: %s\n", (char *)P2V(mbi->cmdline));
     }
 
     if (mbi->flags & 0x8 && mbi->mods_count > 0) {
-        multiboot_mod_t *mods = (multiboot_mod_t *)mbi->mods_addr;
+        multiboot_mod_t *mods = (multiboot_mod_t *)P2V(mbi->mods_addr);
         printk("Modules loaded: %u\n", mbi->mods_count);
         for (uint32_t i = 0; i < mbi->mods_count; i++) {
             printk("Module %u: %x - %x\n", i, mods[i].mod_start,
                    mods[i].mod_end);
             if (mods[i].cmdline) {
-                printk("Module cmdline: %s\n", (char *)mods[i].cmdline);
+                printk("Module cmdline: %s\n", (char *)P2V(mods[i].cmdline));
             }
         }
     }
 
     if (mbi->flags & 0x40 && mbi->mmap_length > 0) {
-        multiboot_mmap_entry_t *mmap = (multiboot_mmap_entry_t *)mbi->mmap_addr;
-        uint32_t end = mbi->mmap_addr + mbi->mmap_length;
+        multiboot_mmap_entry_t *mmap = (multiboot_mmap_entry_t *)P2V(mbi->mmap_addr);
+        uintptr_t end = (uintptr_t)P2V(mbi->mmap_addr + mbi->mmap_length);
         printk("Memory map:\n");
 
-        while ((uint32_t)mmap < end) {
+        while ((uintptr_t)mmap < end) {
             printk("%llx - %llx, type=%u\n", mmap->addr, mmap->addr + mmap->len,
                    mmap->type);
             mmap = (multiboot_mmap_entry_t *)((uint8_t *)mmap + mmap->size + 4);
@@ -53,15 +54,15 @@ void print_multiboot_info(multiboot_info_t *mbi) {
 
     // Bootloader name
     if (mbi->flags & (1 << 9) && mbi->boot_loader_name) {
-        printk("Bootloader: %s\n", (char *)mbi->boot_loader_name);
+        printk("Bootloader: %s\n", (char *)P2V(mbi->boot_loader_name));
     }
 
     // Drives
     if (mbi->flags & (1 << 7) && mbi->drives_addr) {
-        uint8_t *drive_ptr = (uint8_t *)mbi->drives_addr;
-        uint32_t drives_end = mbi->drives_addr + mbi->drives_length;
+        uint8_t *drive_ptr = (uint8_t *)P2V(mbi->drives_addr);
+        uintptr_t drives_end = (uintptr_t)P2V(mbi->drives_addr + mbi->drives_length);
         printk("Drives info:\n");
-        while ((uint32_t)drive_ptr < drives_end) {
+        while ((uintptr_t)drive_ptr < drives_end) {
             multiboot_drive_t *drv = (multiboot_drive_t *)drive_ptr;
             printk(
                 "Drive 0x%x: mode=0x%x, cylinders=%u, heads=%u, sectors=%u\n",
@@ -74,7 +75,7 @@ void print_multiboot_info(multiboot_info_t *mbi) {
     // VBE/graphics info
     if (mbi->flags & (1 << 11) && mbi->vbe_control_info) {
         multiboot_vbe_info_t *vbe =
-            (multiboot_vbe_info_t *)mbi->vbe_control_info;
+            (multiboot_vbe_info_t *)P2V(mbi->vbe_control_info);
         printk("VBE Info: %ux%u, %u bpp, framebuffer at 0x%llx\n", vbe->width,
                vbe->height, vbe->bpp, vbe->framebuffer_addr);
     }

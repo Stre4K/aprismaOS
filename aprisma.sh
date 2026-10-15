@@ -180,10 +180,15 @@ done
 # Environment setup
 # ============================
 case "$COMPILER" in
-    i686-elf-gcc) HOST=i686-elf ;;
-    x86_64-elf-gcc) HOST=x86_64-elf ;;
+    i686-elf-gcc)   HOST=i686-elf;   HOSTARCH=i386;   QEMU=qemu-system-i386 ;;
+    x86_64-elf-gcc) HOST=x86_64-elf; HOSTARCH=x86_64; QEMU=qemu-system-x86_64 ;;
     *) echo "Invalid compiler: $COMPILER"; exit 1 ;;
 esac
+
+export HOSTARCH
+DEBUGGER="${HOST}-gdb"
+# Keep objects per architecture so switching --compiler never mixes them
+OBJ_DIR="$OBJ_DIR/$HOSTARCH"
 
 export CC="${HOST}-gcc"
 export AS="${HOST}-as"
@@ -266,13 +271,18 @@ if [ -n "$RUN_MODE" ]; then
     case "$RUN_MODE" in
         kernel)
             RUN_KERNEL=${RUN_PATH:-"$KERNEL_PATH"}
+            if [ "$HOSTARCH" = "x86_64" ]; then
+                # QEMU's built-in Multiboot loader only accepts 32-bit ELF files
+                "${HOST}-objcopy" -O elf32-i386 "$RUN_KERNEL" "$ROOTDIR/build/aprisma32.kernel"
+                RUN_KERNEL="$ROOTDIR/build/aprisma32.kernel"
+            fi
             echo "Running kernel in QEMU: $RUN_KERNEL"
-            qemu-system-i386 -kernel "$RUN_KERNEL" -monitor stdio
+            $QEMU -kernel "$RUN_KERNEL" -monitor stdio
             ;;
         iso)
             RUN_ISO=${RUN_PATH:-"$ISO_OUTPUT"}
             echo "Running ISO in QEMU: $RUN_ISO"
-            qemu-system-i386 -cdrom "$RUN_ISO" -boot d -monitor stdio $QEMU_GDB_DEBUG
+            $QEMU -cdrom "$RUN_ISO" -boot d -monitor stdio $QEMU_GDB_DEBUG
             ;;
         *)
             echo "Unknown run mode: $RUN_MODE"
@@ -303,9 +313,8 @@ if [ "$GEN_COMPILE_DB" = "1" ]; then
     # ============================
 
     #ROOTDIR=$(pwd)
-    OBJ_DIR="$ROOTDIR/build/objects"
+    OBJ_DIR="$ROOTDIR/build/objects/$HOSTARCH"
     SYSROOT="$ROOTDIR/build/AprismaOS/sysroot"
-    CC="i686-elf-gcc"
 
     # Common flags
     CFLAGS="-O2 -g -ffreestanding -Wall -Wextra -nostdlib -nostdinc -Werror"
@@ -353,12 +362,21 @@ if [ "$GEN_COMPILE_DB" = "1" ]; then
         #    cmd="$CC $CFLAGS $KERNEL_CPPFLAGS -c $f -o $obj"
         #fi
 
+        # Arch-specific files use their own compiler and headers; shared
+        # files use the architecture selected with --compiler
+        case "$rel" in
+            arch/i386/*)   FILE_CC=i686-elf-gcc;   FILE_ARCH=i386 ;;
+            arch/x86_64/*) FILE_CC=x86_64-elf-gcc; FILE_ARCH=x86_64 ;;
+            *)             FILE_CC="$CC";          FILE_ARCH="$HOSTARCH" ;;
+        esac
+        ARCH_INCLUDE="-Isrc/kernel/arch/$FILE_ARCH/include"
+
         case "$f" in
             *.c)
-                cmd="$CC $CFLAGS $KERNEL_CPPFLAGS -std=gnu11 -c $f -o $obj"
+                cmd="$FILE_CC $CFLAGS $ARCH_INCLUDE $KERNEL_CPPFLAGS -std=gnu11 -c $f -o $obj"
                 ;;
             *)
-                cmd="$CC $CFLAGS $KERNEL_CPPFLAGS -c $f -o $obj"
+                cmd="$FILE_CC $CFLAGS $ARCH_INCLUDE $KERNEL_CPPFLAGS -c $f -o $obj"
                 ;;
         esac
         add_entry "$f" "$ROOTDIR" "$cmd"

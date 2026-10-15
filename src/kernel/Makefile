@@ -15,7 +15,7 @@ ARCHDIR ?= $(SRC_DIR)/arch/$(HOSTARCH)
 SYSROOT ?= $(SYSROOT)
 
 CFLAGS   := $(CFLAGS) -ffreestanding -Wall -Wextra -nostdlib -nostdinc -Werror
-CPPFLAGS := $(CPPFLAGS) -D__is_kernel -Iinclude -I$(SYSROOT)/include
+CPPFLAGS := $(CPPFLAGS) -D__is_kernel -I$(ARCHDIR)/include -Iinclude -I$(SYSROOT)/include
 
 include $(ARCHDIR)/make.config
 
@@ -25,9 +25,14 @@ LDFLAGS  += $(KERNEL_ARCH_LDFLAGS)
 LIBS     += $(KERNEL_ARCH_LIBS)
 
 # Kernel sources and objects
-KERNEL_SRCS := $(shell find $(SRC_DIR) -name '*.c' -o -name '*.S')
-			   #$(shell find $(SRC_DIR)/core -name '*.c') \
-               #$(shell find $(SRC_DIR)/arch/$(HOSTARCH) -name '*.c' -o -name '*.S')
+# Generic sources are everything outside arch/. An arch can leave some out
+# with KERNEL_GENERIC_EXCLUDE in its make.config while a port is in progress.
+GENERIC_SRCS := $(shell find $(SRC_DIR) -path $(SRC_DIR)/arch -prune -o \( -name '*.c' -o -name '*.S' \) -print)
+GENERIC_SRCS := $(filter-out $(addprefix $(SRC_DIR)/,$(KERNEL_GENERIC_EXCLUDE)),$(GENERIC_SRCS))
+# KERNEL_ARCH_DIRS lists code shared between architectures (e.g. arch/x86)
+ARCH_DIRS    := $(ARCHDIR) $(addprefix $(SRC_DIR)/,$(KERNEL_ARCH_DIRS))
+ARCH_SRCS    := $(shell find $(ARCH_DIRS) -name '*.c' -o -name '*.S')
+KERNEL_SRCS  := $(GENERIC_SRCS) $(ARCH_SRCS)
 KERNEL_OBJS := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(KERNEL_SRCS))
 KERNEL_OBJS := $(patsubst $(SRC_DIR)/%.S,$(OBJ_DIR)/%.o,$(KERNEL_OBJS))
 
@@ -50,7 +55,7 @@ RESET := \033[0m
 # -------------------------
 $(BIN): $(KERNEL_OBJS) $(ARCHDIR)/linker.ld $(LIBK_A)
 	@mkdir -p $(dir $@)
-	@$(CC) -nostdlib -ffreestanding \
+	@$(CC) -nostdlib -ffreestanding $(LDFLAGS) \
 		-T $(ARCHDIR)/linker.ld \
 		-o $@ \
 		$(KERNEL_OBJS) \

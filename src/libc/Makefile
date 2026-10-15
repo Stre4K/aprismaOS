@@ -40,7 +40,9 @@ LIBK_CPPFLAGS += $(KERNEL_ARCH_CPPFLAGS)
 # -------------------------
 SRCS := $(shell find $(SRC_DIR) -name '*.c')
 OBJS := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SRCS))
-LIBK_OBJS := $(patsubst $(OBJ_DIR)/%.o,$(OBJ_DIR)/%.libk.o,$(OBJS))
+# An arch can leave files out of libk with LIBK_EXCLUDE (paths relative to src/libc)
+LIBK_SRCS := $(filter-out $(addprefix $(SRC_DIR)/,$(LIBK_EXCLUDE)),$(SRCS))
+LIBK_OBJS := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.libk.o,$(LIBK_SRCS))
 
 BINARIES := $(OBJ_DIR)/libc.a $(OBJ_DIR)/libk.a
 

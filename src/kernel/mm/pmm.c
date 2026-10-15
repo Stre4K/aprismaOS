@@ -6,6 +6,7 @@
 #include <kernel/bitmap.h>
 #include <kernel/multiboot.h>
 #include <kernel/panic.h>
+#include <kernel/arch/memlayout.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -30,7 +31,8 @@ static uint8_t usable[MAX_PAGES / 8];
 
 static uint32_t total_pages;
 
-extern uint32_t kernel_end;
+// Physical end of the kernel image (from the linker script)
+extern char kernel_end_phys[];
 
 typedef struct {
     uint64_t start;
@@ -54,15 +56,15 @@ static void reserve(uint64_t start, uint64_t end) {
 
 static void reserve_string(uint32_t addr) {
     if (addr)
-        reserve(addr, addr + strlen((const char *)(uintptr_t)addr) + 1);
+        reserve(addr, addr + strlen((const char *)P2V(addr)) + 1);
 }
 
 /* Collect everything the PMM must never hand out */
 static void reserve_boot_data(multiboot_info_t *mbi) {
     /* low 1MB (IVT, BDA, EBDA, BIOS) and the kernel image */
-    reserve(0, (uintptr_t)&kernel_end);
+    reserve(0, (uintptr_t)kernel_end_phys);
 
-    reserve((uintptr_t)mbi, (uintptr_t)mbi + sizeof(*mbi));
+    reserve(V2P(mbi), V2P(mbi) + sizeof(*mbi));
     reserve(mbi->mmap_addr, (uint64_t)mbi->mmap_addr + mbi->mmap_length);
 
     if (mbi->flags & MB_FLAG_CMDLINE)
@@ -72,7 +74,7 @@ static void reserve_boot_data(multiboot_info_t *mbi) {
         reserve_string(mbi->boot_loader_name);
 
     if (mbi->flags & MB_FLAG_MODS) {
-        multiboot_mod_t *mods = (multiboot_mod_t *)(uintptr_t)mbi->mods_addr;
+        multiboot_mod_t *mods = (multiboot_mod_t *)P2V(mbi->mods_addr);
 
         reserve(mbi->mods_addr,
                 (uint64_t)mbi->mods_addr + mbi->mods_count * sizeof(multiboot_mod_t));
@@ -112,7 +114,7 @@ void pmm_init(multiboot_info_t *mbi) {
     /* Pass 1: free every whole page inside a usable region */
     while (addr < end) {
         multiboot_mmap_entry_t *entry =
-            (multiboot_mmap_entry_t *)(uintptr_t)addr;
+            (multiboot_mmap_entry_t *)P2V(addr);
 
         /* size excludes the size field itself; a short entry means a corrupt map */
         if (entry->size < sizeof(*entry) - sizeof(entry->size))
@@ -146,7 +148,7 @@ void pmm_init(multiboot_info_t *mbi) {
     addr = mbi->mmap_addr;
     while (addr < end) {
         multiboot_mmap_entry_t *entry =
-            (multiboot_mmap_entry_t *)(uintptr_t)addr;
+            (multiboot_mmap_entry_t *)P2V(addr);
 
         if (entry->size < sizeof(*entry) - sizeof(entry->size))
             break;
@@ -188,7 +190,7 @@ void pmm_free_page(void *page) {
     if (addr & (PAGE_SIZE - 1))
         panic("pmm_free_page: address is not page aligned");
 
-    uint32_t index = addr / PAGE_SIZE;
+    uintptr_t index = addr / PAGE_SIZE;
 
     if (index >= MAX_PAGES || !test_bit(usable, index))
         panic("pmm_free_page: address is not usable RAM");

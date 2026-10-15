@@ -11,6 +11,7 @@
 #include <kernel/mm/heap.h>
 #include <kernel/mm/paging.h>
 #include <kernel/mm/pmm.h>
+#include <kernel/arch/memlayout.h>
 #include <kernel/panic.h>
 #include <kernel/printk.h>
 #include <stdint.h>
@@ -18,8 +19,7 @@
 
 #define PAGE_SIZE 4096
 
-#define HEAP_START         0xD0000000
-#define HEAP_MAX           0xE0000000  // 256 MiB of virtual space
+// HEAP_START and HEAP_MAX come from <kernel/arch/memlayout.h>
 #define HEAP_INITIAL_PAGES 16          // 64 KiB mapped at init
 #define HEAP_TRIM_PAGES    16          // only give memory back in chunks this big
 
@@ -46,14 +46,14 @@ static uintptr_t heap_end;  // first unmapped address after the heap
 
 /* ---- interrupt-safe locking (single CPU) ---- */
 
-static inline uint32_t heap_lock(void)
+static inline uintptr_t heap_lock(void)
 {
-    uint32_t flags;
+    uintptr_t flags;
     asm volatile("pushf; pop %0; cli" : "=r"(flags) :: "memory");
     return flags;
 }
 
-static inline void heap_unlock(uint32_t flags)
+static inline void heap_unlock(uintptr_t flags)
 {
     asm volatile("push %0; popf" :: "r"(flags) : "memory", "cc");
 }
@@ -85,7 +85,7 @@ static int heap_grow(size_t pages)
             return 0;
         }
 
-        map_page(heap_end, (uint32_t)(uintptr_t)phys);
+        map_page(heap_end, (uintptr_t)phys);
         heap_end += PAGE_SIZE;
     }
 
@@ -218,7 +218,7 @@ void *kmalloc(size_t size)
 
     size = ALIGN_UP(size, HEAP_ALIGN);
 
-    uint32_t flags = heap_lock();
+    uintptr_t flags = heap_lock();
 
     block_t *b = heap_first;
     while (b && !(b->magic == BLOCK_FREE && b->size >= size))
@@ -260,7 +260,7 @@ void kfree(void *ptr)
     if (ptr == NULL)
         return;
 
-    uint32_t flags = heap_lock();
+    uintptr_t flags = heap_lock();
 
     block_t *b = ptr_to_block(ptr, "kfree");
     b->magic = BLOCK_FREE;
@@ -292,7 +292,7 @@ void *krealloc(void *ptr, size_t size)
     if (size > HEAP_MAX - HEAP_START)
         return NULL;
 
-    uint32_t flags = heap_lock();
+    uintptr_t flags = heap_lock();
 
     block_t *b = ptr_to_block(ptr, "krealloc");
     size_t aligned = ALIGN_UP(size, HEAP_ALIGN);
@@ -330,7 +330,7 @@ void kheap_get_stats(kheap_stats_t *stats)
 {
     memset(stats, 0, sizeof(*stats));
 
-    uint32_t flags = heap_lock();
+    uintptr_t flags = heap_lock();
 
     stats->heap_size = heap_end - HEAP_START;
 
@@ -349,7 +349,7 @@ void kheap_get_stats(kheap_stats_t *stats)
 
 void kheap_dump(void)
 {
-    uint32_t flags = heap_lock();
+    uintptr_t flags = heap_lock();
 
     int i = 0;
     for (block_t *b = heap_first; b; b = b->next, i++) {
@@ -366,7 +366,7 @@ void kheap_dump(void)
 
 int kheap_check(void)
 {
-    uint32_t flags = heap_lock();
+    uintptr_t flags = heap_lock();
     int ok = 1;
 
     block_t *prev = NULL;

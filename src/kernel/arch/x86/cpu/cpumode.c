@@ -4,11 +4,12 @@
 // Date: 2026-03-07
 
 #include <kernel/arch/cpu.h>
+#include <kernel/arch/cpumode.h>
 #include <kernel/arch/msr.h>
 #include <stdint.h>
 
 cpu_mode_t cpu_get_mode(void) {
-    uint32_t cr0 = read_cr0();
+    uint64_t cr0 = read_cr0();
 
     if (!(cr0 & 1))
         return CPU_MODE_REAL;        // PE = 0 → Real mode
@@ -31,7 +32,7 @@ const char* cpu_mode_str(cpu_mode_t mode) {
 }
 
 int cpu_is_paging_enabled(void) {
-    uint32_t cr0 = read_cr0();
-    return (cr0 & (1 << 31)) != 0; // PG bit
+    uint64_t cr0 = read_cr0();
+    return (cr0 & (1u << 31)) != 0; // PG bit
 }
 

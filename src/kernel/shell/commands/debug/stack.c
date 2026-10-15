@@ -19,11 +19,15 @@ void cmd_stack(int argc, char **argv)
     (void)argc;
     (void)argv;
 
-    uint32_t esp;
+    uintptr_t sp;
 
-    __asm__ volatile("mov %%esp, %0" : "=r"(esp));
-
-    printk("Current ESP: 0x%x\n", esp);
+#if defined(__x86_64__)
+    __asm__ volatile("mov %%rsp, %0" : "=r"(sp));
+    printk("Current RSP: %p\n", (void *)sp);
+#else
+    __asm__ volatile("mov %%esp, %0" : "=r"(sp));
+    printk("Current ESP: %p\n", (void *)sp);
+#endif
 }
 
 SHELL_CMD("debug", "stack", "Display stack information", cmd_stack);
