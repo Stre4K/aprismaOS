@@ -4,8 +4,9 @@
 // This trampoline checks for long mode, builds temporary page tables, enables
 // long mode and jumps to kernel_main in the higher half.
 //
-// Temporary mappings (2 MiB pages, physical 0..1 GiB):
+// Temporary mappings (2 MiB pages, physical 0..1 GiB) until paging_init:
 //   0x0000000000000000 -> 0  identity, for the trampoline and boot data
+//   0xFFFF800000000000 -> 0  direct map (PHYS_MAP_BASE), used by P2V()
 //   0xFFFFFFFF80000000 -> 0  higher half, where the kernel is linked
 
 #define KERNEL_VMA 0xFFFFFFFF80000000
@@ -121,6 +122,9 @@ _start:
     // Identity map: PML4[0] -> PDPT_low[0] -> PD
     movl $(V2P(boot_pd) + PAGE_PRESENT + PAGE_RW), V2P(boot_pdpt_low)
     movl $(V2P(boot_pdpt_low) + PAGE_PRESENT + PAGE_RW), V2P(boot_pml4)
+
+    // Direct map at 0xFFFF800000000000: PML4[256] -> the same PDPT
+    movl $(V2P(boot_pdpt_low) + PAGE_PRESENT + PAGE_RW), V2P(boot_pml4) + 256 * 8
 
     // Higher half: PML4[511] -> PDPT_high[510] -> PD
     movl $(V2P(boot_pd) + PAGE_PRESENT + PAGE_RW), V2P(boot_pdpt_high) + 510 * 8

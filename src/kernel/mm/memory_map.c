@@ -4,6 +4,7 @@
 // Date: 2026-03-08
 
 #include <kernel/multiboot.h>
+#include <kernel/arch/memlayout.h>
 #include <kernel/printk.h>
 
 void memory_map_detect(multiboot_info_t *mbi) {
@@ -21,7 +22,7 @@ void memory_map_detect(multiboot_info_t *mbi) {
     uint64_t reserved = 0;
 
     while (addr < end) {
-        multiboot_mmap_entry_t *entry = (multiboot_mmap_entry_t *)(uintptr_t)addr;
+        multiboot_mmap_entry_t *entry = (multiboot_mmap_entry_t *)P2V(addr);
 
         printk(" base=%llx len=%llx type=%u\n", entry->addr, entry->len,
                entry->type);

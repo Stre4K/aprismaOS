@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <kernel/arch/memlayout.h>
 
 
 
@@ -10,7 +11,8 @@
 //static const size_t VGA_HEIGHT = 25;
 #define VGA_WIDTH 80
 #define VGA_HEIGHT 25
-static uint16_t *const VGA_MEMORY = (uint16_t *)0xB8000;
+// VGA text buffer at physical 0xB8000, reached through the direct map
+#define VGA_MEMORY ((uint16_t *)P2V(0xB8000))
 
 
 enum vga_color {
