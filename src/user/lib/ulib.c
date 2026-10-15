@@ -14,6 +14,11 @@ long write(int fd, const void *buf, size_t len)
     return syscall3(SYS_WRITE, fd, (long)buf, (long)len);
 }
 
+long read(int fd, void *buf, size_t len)
+{
+    return syscall3(SYS_READ, fd, (long)buf, (long)len);
+}
+
 long getpid(void)
 {
     return syscall3(SYS_GETPID, 0, 0, 0);
