@@ -17,6 +17,7 @@
 #include <kernel/mm/paging.h>
 #include <kernel/mm/memory_map.h>
 #include <kernel/mm/pmm.h>
+#include <kernel/mm/heap.h>
 void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     disable_interrupts();
 
@@ -48,6 +49,9 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     pmm_init(mb_info_ptr);
     paging_init();
     enable_paging(page_directory);
+
+    kheap_init();
+    printk("[HEAP] Initialized\n");
 
 
     if (cpuid_supported_check()) {
