@@ -2,19 +2,19 @@
 #include <kernel/drivers/tty.h>
 #include <kernel/printk.h>
 #include <kernel/mm/memory_map.h>
-
-// Subsystems not yet ported to x86_64 stay i386-only until their port lands
-#if defined(__i386__)
 #include <kernel/arch/gdt.h>
 #include <kernel/arch/idt.h>
 #include <kernel/arch/isr.h>
+#include <kernel/arch/pic.h>
+#include <kernel/arch/timer.h>
+
+// Subsystems not yet ported to x86_64 stay i386-only until their port lands
+#if defined(__i386__)
 #include <kernel/arch/cpuid.h>
 #include <kernel/arch/lapic.h>
-#include <kernel/arch/pic.h>
 #include <kernel/arch/portio.h>
 #include <kernel/drivers/keyboard.h>
 #include <kernel/drivers/ps2.h>
-#include <kernel/arch/timer.h>
 #include <kernel/shell/commands.h>
 #include <kernel/mm/fault.h>
 #include <kernel/mm/paging.h>
@@ -23,9 +23,7 @@
 #endif
 
 void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
-#if defined(__i386__)
     disable_interrupts();
-#endif
 
     terminal_initialize();
 
@@ -44,11 +42,8 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
 
 #if defined(__x86_64__)
     printk("[x86_64] Running in 64-bit long mode\n");
+#endif
 
-    // TODO(x86_64): port GDT/IDT, memory management, drivers and the shell
-    for (;;)
-        __asm__ volatile("cli; hlt");
-#else
     init_gdt();
     printk("[GDT] Loaded\n");
 
@@ -57,6 +52,7 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
     init_idt();
     printk("[IDT] Loaded\n");
 
+#if defined(__i386__)
     register_isr_handler(14, page_fault_handler);
 
     memory_map_detect(mb_info_ptr);
@@ -72,12 +68,15 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
         cpuid_init();
         printk("[CPUID] Loaded\n");
     }
+#endif
 
     pic_init();
     pit_init();
 
+#if defined(__i386__)
     ps2_controller_init();
     keyboard_init();
+#endif
 
 
     // Currently unused
@@ -87,8 +86,12 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb_info_ptr) {
 
     enable_interrupts();
 
-    while(1) {
-        continue;
-    }
+#if defined(__x86_64__)
+    // TODO(x86_64): port memory management, keyboard and the shell
+    printk("[x86_64] Interrupts enabled\n");
 #endif
+
+    while(1) {
+        __asm__ volatile("hlt");
+    }
 }
