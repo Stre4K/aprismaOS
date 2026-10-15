@@ -107,6 +107,9 @@ ISR_NOERR 31
 ISR_NOERR \n
 .endr
 
+// System calls (int $0x80); the IDT gate allows it from ring 3
+ISR_NOERR 128
+
 .section .rodata
 .align 8
 .global isr_stub_table

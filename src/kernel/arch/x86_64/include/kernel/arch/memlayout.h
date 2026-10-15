@@ -1,7 +1,7 @@
 // memlayout.h (x86_64)
 // Virtual memory layout and physical <-> virtual helpers
 //
-//   0x0000000000000000 - 0x00007FFFFFFFFFFF  user space (unused for now)
+//   0x0000000000400000 - 0x00007FFFFFFFFFFF  user space (per process)
 //   0xFFFF800000000000 - ...                 direct map of physical memory
 //   0xFFFFC00000000000 - +256 MiB            kernel heap
 //   0xFFFFD00000000000 - +16 MiB             kernel thread stacks
@@ -27,6 +27,13 @@
 #define KSTACK_SLOT_SIZE 0x10000UL            // 64 KiB per slot
 #define KSTACK_PAGES     4                    // 16 KiB stack
 #define KSTACK_SLOTS     256                  // maximum number of threads
+
+// User space (lower half, one address space per process). Programs are
+// linked at USER_START; the stack sits just below USER_STACK_TOP.
+#define USER_START       0x0000000000400000UL
+#define USER_END         0x0000800000000000UL  // end of the canonical lower half
+#define USER_STACK_TOP   0x00007FFFFFFFF000UL
+#define USER_STACK_PAGES 4                     // 16 KiB
 
 // Direct-map conversions
 #define P2V(phys) ((void *)((uintptr_t)(phys) + PHYS_MAP_BASE))

@@ -15,6 +15,7 @@
 #include <kernel/mm/pmm.h>
 #include <kernel/arch/timer.h>
 #include <kernel/sched.h>
+#include <kernel/proc.h>
 #include <string.h>
 #include <stdint.h>
 
@@ -291,6 +292,105 @@ static void overflow_thread(void *arg)
 }
 #endif // CONFIG_SCHED
 
+#ifdef CONFIG_USERMODE
+/* ---- test user ---- */
+
+// Run a program to the end; returns its exit code (-1000 if it could not start)
+static int run_program(const char *name, bool *killed)
+{
+    process_t *p = process_spawn(name);
+    if (p == NULL)
+        return -1000;
+    return process_wait_info(p, killed);
+}
+
+static bool expect_exit(const char *name, int expected)
+{
+    bool killed;
+    int code = run_program(name, &killed);
+    if (killed || code != expected) {
+        printk("user test: %s %s %d, expected exit code %d\n", name,
+               killed ? "was killed, code" : "exited with", code, expected);
+        return false;
+    }
+    return true;
+}
+
+static bool expect_killed(const char *name)
+{
+    bool killed;
+    int code = run_program(name, &killed);
+    if (!killed) {
+        printk("user test: %s should have been killed, exited with %d\n", name, code);
+        return false;
+    }
+    return true;
+}
+
+static void test_user(void)
+{
+    int errors = 0;
+
+    // Exit codes and system call error handling
+    errors += !expect_exit("exitcode", 42);
+    errors += !expect_exit("badptr", 0);
+
+    // Faults in user mode end the process, not the kernel
+    errors += !expect_killed("crash");
+    errors += !expect_killed("privileged");
+
+    // Two copies at once: each sees only its own memory at the same address
+    process_t *a = process_spawn("isolation");
+    process_t *b = process_spawn("isolation");
+    if (a == NULL || b == NULL) {
+        printk("user test: cannot start two processes\n");
+        errors++;
+    }
+    int code_a = a ? process_wait(a) : -1;
+    int code_b = b ? process_wait(b) : -1;
+    if (code_a != 0 || code_b != 0) {
+        printk("user test: isolation failed (%d, %d)\n", code_a, code_b);
+        errors++;
+    }
+
+    // User code is preemptible: this thread keeps waking up while a
+    // process busy-loops without making system calls
+    process_t *spinner = process_spawn("spin");
+    int wakeups = 0;
+    while (spinner && !spinner->exited) {
+        thread_sleep(5);
+        wakeups++;
+    }
+    if (spinner == NULL || process_wait(spinner) != 0 || wakeups < 3) {
+        printk("user test: kernel ran only %d times while spin was busy\n", wakeups);
+        errors++;
+    }
+
+    // Exited processes leave nothing behind
+    thread_sleep(50);  // let the scheduler free the processes above
+    size_t threads_before = thread_count();
+    uint32_t pages_before = pmm_free_pages();
+    kheap_stats_t heap_before;
+    kheap_get_stats(&heap_before);
+
+    for (int i = 0; i < 20; i++)
+        errors += !expect_exit("exitcode", 42);
+    thread_sleep(50);
+
+    kheap_stats_t heap_after;
+    kheap_get_stats(&heap_after);
+    if (thread_count() != threads_before || pmm_free_pages() != pages_before ||
+        heap_after.used_blocks != heap_before.used_blocks) {
+        printk("user test: processes leaked (threads %u -> %u, free pages %u -> %u, heap blocks %u -> %u)\n",
+               (unsigned)threads_before, (unsigned)thread_count(), pages_before, pmm_free_pages(),
+               (unsigned)heap_before.used_blocks, (unsigned)heap_after.used_blocks);
+        errors++;
+    }
+
+    printk("user test: %d wakeups during spin, %s\n", wakeups, errors ? "FAILED" : "passed");
+}
+#endif // CONFIG_USERMODE
+
 void cmd_test(int argc, char **argv)
 {
     if (argc < 2)
@@ -317,6 +417,12 @@ void cmd_test(int argc, char **argv)
     {
         thread_create("overflow", overflow_thread, NULL);
         thread_sleep(500);
+    }
+#endif
+#ifdef CONFIG_USERMODE
+    else if (strcmp(argv[1], "user") == 0)
+    {
+        test_user();
     }
 #endif
     else if (strcmp(argv[1], "timer") == 0)

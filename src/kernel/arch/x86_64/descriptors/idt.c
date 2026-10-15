@@ -33,6 +33,12 @@ void init_idt(void)
     set_idt_gate(3, (uint64_t)(uintptr_t)isr_stub_table[3], 0, IDT_KERNEL_TRAP_GATE);
     set_idt_gate(4, (uint64_t)(uintptr_t)isr_stub_table[4], 0, IDT_KERNEL_TRAP_GATE);
 
+#ifdef CONFIG_USERMODE
+    // System calls: the only gate user mode may trigger with "int"
+    extern void isr128(void);
+    set_idt_gate(0x80, (uint64_t)(uintptr_t)isr128, 0, IDT_FLAG_PRESENT | IDT_FLAG_RING3 | IDT_TYPE_INT64);
+#endif
+
     // Double fault always runs on its own known-good stack
     set_idt_gate(8, (uint64_t)(uintptr_t)isr_stub_table[8], TSS_IST_DOUBLE_FAULT, IDT_KERNEL_INT_GATE);
 
