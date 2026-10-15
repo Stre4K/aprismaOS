@@ -26,7 +26,7 @@ from qemu_boot_test import BOOT_DONE, Monitor, TestFailure, read_screen, wait_fo
 KEY_DELAY = 0.03  # seconds between key events
 
 # QMP qcodes for characters that are not plain lowercase letters or digits
-QCODES = {" ": "spc", "-": "minus", ".": "dot", "/": "slash", "=": "equal", ",": "comma"}
+QCODES = {" ": "spc", "-": "minus", ".": "dot", "/": "slash", "=": "equal", ",": "comma", "'": "apostrophe"}
 
 
 class Qmp:
@@ -230,6 +230,82 @@ def ctrl_l_clears_and_keeps_the_line(vm):
     vm.wait(r"(?m)^keep$")
 
 
+# ---------------------------------------------------- user programs (read)
+
+def usermode(scenario):
+    """Mark a scenario that needs user programs (x86_64 only so far)."""
+    scenario.usermode = True
+    return scenario
+
+
+@usermode
+def read_returns_a_line_typed_after_the_prompt(vm):
+    vm.qmp.type("run greet\n")
+    vm.wait(r"What's your name\?")  # screen lines lose trailing spaces
+    vm.qmp.type("Ada\n")
+    vm.wait(r"\[\d+ greet\] exited with code 0")
+    expect(re.search(r"(?m)^What's your name\? Ada$", vm.screen()), "input must follow the prompt", vm)
+    expect(re.search(r"(?m)^Hello, Ada!$", vm.screen()), "the program must get the line", vm)
+
+
+@usermode
+def read_supports_line_editing(vm):
+    vm.qmp.type("run greet\n")
+    vm.wait(r"What's your name\?")  # screen lines lose trailing spaces
+    vm.qmp.type("Adx")
+    vm.qmp.tap("backspace")
+    vm.qmp.type("a")
+    vm.qmp.tap("home")
+    vm.qmp.tap("end")
+    vm.qmp.type("\n")
+    vm.wait(r"(?m)^Hello, Ada!$")
+
+
+@usermode
+def read_gets_each_line_and_ctrl_d_ends_input(vm):
+    vm.qmp.type("run upper\n")
+    vm.settle()
+    vm.qmp.type("abc\n")
+    vm.wait(r"(?m)^ABC$")
+    vm.qmp.type("Hello World\n")
+    vm.wait(r"(?m)^HELLO WORLD$")
+    vm.qmp.tap("ctrl", "d")
+    vm.wait(r"\[\d+ upper\] exited with code 2")
+
+
+@usermode
+def ctrl_c_kills_a_busy_program(vm):
+    vm.qmp.type("run forever\n")
+    vm.settle()
+    vm.qmp.tap("ctrl", "c")
+    vm.wait(r"\[\d+ forever\] killed: interrupted \(Ctrl\+C\)")
+    vm.wait(r"\[\d+ forever\] was killed")
+    vm.qmp.type("echo alive\n")
+    vm.wait(r"(?m)^alive$")
+
+
+@usermode
+def ctrl_c_kills_a_program_waiting_for_input(vm):
+    vm.qmp.type("run greet\n")
+    vm.wait(r"What's your name\?")  # screen lines lose trailing spaces
+    vm.qmp.tap("ctrl", "c")
+    vm.wait(r"\[\d+ greet\] was killed")
+    vm.qmp.type("echo alive\n")
+    vm.wait(r"(?m)^alive$")
+
+
+@usermode
+def input_typed_ahead_reaches_the_program(vm):
+    vm.qmp.type("run greet\nBob\n")  # the name is typed before the prompt appears
+    vm.wait(r"(?m)^Hello, Bob!$")
+
+
+def ctrl_d_at_the_shell_prompt_is_harmless(vm):
+    vm.qmp.tap("ctrl", "d")
+    vm.qmp.type("echo still here\n")
+    vm.wait(r"(?m)^still here$")
+
+
 SCENARIOS = [
     typing_runs_a_command,
     ctrl_c_discards_the_line,
@@ -240,6 +316,13 @@ SCENARIOS = [
     tab_and_escape_are_not_inserted,
     clear_moves_the_cursor_to_the_top,
     ctrl_l_clears_and_keeps_the_line,
+    ctrl_d_at_the_shell_prompt_is_harmless,
+    read_returns_a_line_typed_after_the_prompt,
+    read_supports_line_editing,
+    read_gets_each_line_and_ctrl_d_ends_input,
+    ctrl_c_kills_a_busy_program,
+    ctrl_c_kills_a_program_waiting_for_input,
+    input_typed_ahead_reaches_the_program,
 ]
 
 
@@ -267,6 +350,9 @@ def main():
 
         for scenario in SCENARIOS:
             if args.filter and args.filter not in scenario.__name__:
+                continue
+            if getattr(scenario, "usermode", False) and args.arch != "x86_64":
+                print(f"skip: {scenario.__name__} (no user mode on {args.arch})")
                 continue
             vm = None
             try:
