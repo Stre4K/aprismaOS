@@ -5,6 +5,7 @@
 #include "test.h"
 
 #include <limits.h>
+#include <math.h>
 
 // Run printf and check the exact bytes it printed and its return value
 #define CHECK_PRINTF(expected, ...)                                           \
@@ -98,17 +99,32 @@ TEST(printf_float)
     CHECK_PRINTF("2.250000", "%f", 2.25);
 }
 
-TEST_KNOWN_BUG(printf_float_negative_fraction,
-               "ftoa does not handle the sign of the fraction")
+TEST(printf_float_negative_fraction)
 {
     CHECK_PRINTF("-0.500000", "%f", -0.5);
     CHECK_PRINTF("-1.500000", "%f", -1.5);
 }
 
-TEST_KNOWN_BUG(printf_float_leading_zero_in_fraction,
-               "ftoa drops leading zeros of the fraction")
+TEST(printf_float_leading_zero_in_fraction)
 {
     CHECK_PRINTF("1.050000", "%f", 1.05);
+}
+
+TEST(printf_float_rounding_carries)
+{
+    CHECK_PRINTF("1.000000", "%f", 0.9999999);
+    CHECK_PRINTF("0.000001", "%f", 0.0000005);
+}
+
+TEST(printf_float_beyond_int_range)
+{
+    CHECK_PRINTF("3000000000.000000", "%f", 3e9);
+    CHECK_PRINTF("-3000000000.500000", "%f", -3000000000.5);
+}
+
+TEST(printf_float_special_values)
+{
+    CHECK_PRINTF("inf -inf nan", "%f %f %f", HUGE_VAL, -HUGE_VAL, NAN);
 }
 
 TEST_KNOWN_BUG(printf_width_and_zero_padding,

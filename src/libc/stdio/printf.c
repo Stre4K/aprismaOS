@@ -38,54 +38,59 @@ static size_t utoa(unsigned long long value, char *str, unsigned base, bool uppe
 }
 
 #ifndef LIBK_NO_FLOAT
-// Function to convert integer to string
-static void itoa(int value, char *str, int base) {
-    char buffer[32];  // Temporary buffer
-    int i = 0, is_negative = 0;
+// Convert a double to fixed-point text with `precision` decimals (at most
+// 18); returns the length. str needs room for up to 330 characters.
+static size_t ftoa(double value, char *str, int precision) {
+    size_t len = 0;
 
-    if (value == 0) {
-        str[i++] = '0';
-        str[i] = '\0';
-        return;
+    if (value != value) {
+        strcpy(str, "nan");
+        return 3;
     }
-
-    if (value < 0 && base == 10) {
-        is_negative = 1;
+    if (value < 0) {
+        str[len++] = '-';
         value = -value;
     }
-
-    while (value != 0) {
-        int rem = value % base;
-        buffer[i++] = (rem > 9) ? (rem - 10) + 'a' : rem + '0';
-        value /= base;
+    if (value > 1.7976931348623157e308) {
+        strcpy(str + len, "inf");
+        return len + 3;
     }
 
-    if (is_negative) buffer[i++] = '-';
+    if (precision < 0) precision = 0;
+    if (precision > 18) precision = 18;
 
-    buffer[i] = '\0';
-
-    // Reverse the string into str
-    int j;
-    for (j = 0; j < i; j++) {
-        str[j] = buffer[i - j - 1];
-    }
-    str[j] = '\0';
-}
-
-// Function to convert float to string
-static void ftoa(double value, char *str, int precision) {
-    int int_part = (int)value;
-    double frac_part = value - int_part;
-
-    itoa(int_part, str, 10);
-    size_t len = strlen(str);
-    str[len] = '.';
-
-    for (int i = 0; i < precision; i++) {
-        frac_part *= 10;
+    // Values too big for an unsigned long long are scaled down and printed
+    // with trailing zeros; the digits beyond double precision are not exact
+    int extra_zeros = 0;
+    while (value >= 18446744073709551616.0) {
+        value /= 10;
+        extra_zeros++;
     }
 
-    itoa((int)(frac_part + 0.5), str + len + 1, 10);
+    unsigned long long scale = 1;
+    for (int i = 0; i < precision; i++) scale *= 10;
+
+    unsigned long long int_part = (unsigned long long)value;
+    unsigned long long frac = (unsigned long long)((value - (double)int_part) * (double)scale + 0.5);
+    if (frac >= scale) {  // rounding carried into the integer part
+        int_part++;
+        frac -= scale;
+    }
+
+    len += utoa(int_part, str + len, 10, false);
+    while (extra_zeros-- > 0) str[len++] = '0';
+
+    if (precision > 0) {
+        char digits[24];
+        size_t n = utoa(frac, digits, 10, false);
+        str[len++] = '.';
+        for (size_t i = n; i < (size_t)precision; i++) str[len++] = '0';  // leading zeros
+        memcpy(str + len, digits, n);
+        len += n;
+    }
+
+    str[len] = '\0';
+    return len;
 }
 #endif // LIBK_NO_FLOAT
 
@@ -206,7 +211,7 @@ int printf(const char *restrict format, ...) {
 #ifndef LIBK_NO_FLOAT
             case 'f': {  // Floating point
                 double num = va_arg(parameters, double);
-                char buffer[64];
+                char buffer[330];
                 ftoa(num, buffer, 6);  // Default precision: 6 decimal places
                 size_t len = strlen(buffer);
                 if (maxrem < len) {
