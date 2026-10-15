@@ -50,6 +50,8 @@ double aprisma_cbrt(double x);
 double aprisma_pow(double base, double exponent);
 double aprisma_exp(double x);
 double aprisma_log(double x);
+double aprisma_frexp(double x, int *exponent);
+double aprisma_ldexp(double x, int exponent);
 
 /* kernel/core/bitmap.c */
 void aprisma_set_bit(uint8_t *bitmap, uint32_t bit);

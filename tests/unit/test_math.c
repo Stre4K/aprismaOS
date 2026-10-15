@@ -5,6 +5,33 @@
 #include "test.h"
 
 #include <math.h>
+#include <stdint.h>
+#include <string.h>
+
+// Deterministic random doubles from raw bit patterns: covers zeros,
+// subnormals, infinities and NaNs as well as ordinary values
+static uint64_t rng_state = 0x243F6A8885A308D3ULL;
+
+static uint64_t next_random(void)
+{
+    rng_state = rng_state * 6364136223846793005ULL + 1442695040888963407ULL;
+    return rng_state ^ (rng_state >> 29);
+}
+
+static double random_double_bits(void)
+{
+    uint64_t u = next_random();
+    double d;
+    memcpy(&d, &u, sizeof(d));
+    return d;
+}
+
+static int same_double(double a, double b)
+{
+    if (isnan(a) || isnan(b))
+        return isnan(a) && isnan(b);
+    return memcmp(&a, &b, sizeof(a)) == 0;  // also tells +0 and -0 apart
+}
 
 #define EPS 1e-9
 
@@ -129,4 +156,56 @@ TEST_KNOWN_BUG(log_large_values,
                "the initial guess x-1 overflows exp() for x above ~710, giving NaN")
 {
     CHECK_NEAR(aprisma_log(1000.0), 6.90775527898, 1e-6);
+}
+
+TEST(frexp_splits_mantissa_and_exponent)
+{
+    int e;
+    CHECK_NEAR(aprisma_frexp(8.0, &e), 0.5, 0);
+    CHECK_INT_EQ(e, 4);
+    CHECK_NEAR(aprisma_frexp(-3.0, &e), -0.75, 0);
+    CHECK_INT_EQ(e, 2);
+    CHECK_NEAR(aprisma_frexp(0.0, &e), 0.0, 0);
+    CHECK_INT_EQ(e, 0);
+}
+
+TEST(frexp_matches_host_libc)
+{
+    for (int i = 0; i < 100000; i++) {
+        double x = random_double_bits();
+        int ours, host;
+        double m = aprisma_frexp(x, &ours);
+        double h = frexp(x, &host);
+        if (!same_double(m, h) || (isfinite(x) && ours != host)) {
+            test_fail(__FILE__, __LINE__, "frexp(%a): host %a * 2^%d, got %a * 2^%d", x, h, host, m, ours);
+            return;
+        }
+    }
+}
+
+TEST(ldexp_scales_by_powers_of_two)
+{
+    CHECK_NEAR(aprisma_ldexp(0.75, 3), 6.0, 0);
+    CHECK_NEAR(aprisma_ldexp(1.0, -1), 0.5, 0);
+    CHECK(isinf(aprisma_ldexp(1.0, 5000)));
+    CHECK(aprisma_ldexp(1.0, -5000) == 0.0);
+}
+
+TEST(ldexp_matches_host_libc)
+{
+    for (int i = 0; i < 100000; i++) {
+        double x = random_double_bits();
+        int n = (int)(next_random() % 4401) - 2200;
+        double ours = aprisma_ldexp(x, n);
+        double host = ldexp(x, n);
+        // A subnormal result may be rounded twice while scaling, so allow
+        // one unit in the last place there; everything else must be exact
+        int ok = same_double(ours, host);
+        if (!ok && fpclassify(host) == FP_SUBNORMAL)
+            ok = fabs(ours - host) <= nextafter(fabs(host), INFINITY) - fabs(host);
+        if (!ok) {
+            test_fail(__FILE__, __LINE__, "ldexp(%a, %d): host %a, got %a", x, n, host, ours);
+            return;
+        }
+    }
 }
