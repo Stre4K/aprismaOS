@@ -6,12 +6,15 @@
 
 #include <kernel/shell/shell.h>
 #include <kernel/shell/commands.h>
+#include <kernel/sched.h>
+#include <stdbool.h>
 
 #define CMDLINE_MAX_LEN 128
 
 static char cmdline_buffer[CMDLINE_MAX_LEN];
 static size_t cmdline_length = 0;
 static size_t cmdline_cursor = 0;
+static bool line_ready = false;
 
 void cmdline_init(void) {
     cmdline_length = 0;
@@ -31,8 +34,7 @@ void cmdline_input_char(char c) {
         serial_putchar('\n');
         terminal_putchar('\n');
         cmdline_buffer[cmdline_length] = '\0';
-        shell(cmdline_buffer);
-        cmdline_init(); // reset for next command
+        line_ready = true;  // run by cmdline_run(), outside input handling
         return;
     }
 
@@ -114,4 +116,19 @@ void cmdline_cancel(void) {
     tty_set_cursor(cmdline_length, tty_get_row());  // after the text, not over it
     printk("^C\n");
     cmdline_init();
+}
+
+bool cmdline_line_ready(void) {
+    return line_ready;
+}
+
+// Run the entered line, then start a new one. Called with preemption
+// enabled: commands may sleep or be preempted.
+void cmdline_run(void) {
+    line_ready = false;
+    shell(cmdline_buffer);
+
+    preempt_disable();
+    cmdline_init();
+    preempt_enable();
 }

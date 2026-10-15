@@ -11,4 +11,9 @@ void cmdline_end(void);
 void cmdline_delete(void);
 void cmdline_cancel(void);
 
+// Enter only marks the line as ready; cmdline_run() executes it
+#include <stdbool.h>
+bool cmdline_line_ready(void);
+void cmdline_run(void);
+
 #endif

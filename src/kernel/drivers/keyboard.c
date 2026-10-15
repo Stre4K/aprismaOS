@@ -6,6 +6,7 @@
 #include <kernel/printk.h>
 #include <kernel/drivers/tty.h>
 #include <kernel/shell/cmdline.h>
+#include <kernel/sched.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -150,6 +151,10 @@ static volatile uint8_t kbd_buffer[KBD_BUFFER_SIZE];
 static volatile uint32_t kbd_head;  // next slot to write
 static volatile uint32_t kbd_tail;  // next slot to read
 
+#ifdef CONFIG_SCHED
+static thread_t *volatile input_waiter;  // thread blocked in keyboard_wait_for_input()
+#endif
+
 static void keyboard_irq_handler(regs_t *regs) {
     (void)regs;
 
@@ -164,9 +169,36 @@ static void keyboard_irq_handler(regs_t *regs) {
             kbd_buffer[head % KBD_BUFFER_SIZE] = sc;
             kbd_head = head + 1;  // publish only after the data is stored
         }
+
+#ifdef CONFIG_SCHED
+        thread_t *waiter = input_waiter;
+        if (waiter) {
+            input_waiter = NULL;
+            thread_unblock(waiter);
+        }
+#endif
     }
 
     pic_send_eoi(KBD_IRQ);
+}
+
+void keyboard_wait_for_input(void) {
+    disable_interrupts();
+#ifdef CONFIG_SCHED
+    // Block until the interrupt handler wakes us. Interrupts stay disabled
+    // between the check and blocking, so a key cannot slip in unnoticed.
+    while (!keyboard_has_input()) {
+        input_waiter = thread_current();
+        thread_block();
+    }
+    enable_interrupts();
+#else
+    // Halt until the next interrupt (sti; hlt cannot miss one in between)
+    if (keyboard_has_input())
+        enable_interrupts();
+    else
+        enable_interrupts_and_halt();
+#endif
 }
 
 bool keyboard_has_input(void) {
@@ -216,7 +248,17 @@ void keyboard_process(void) {
     while (kbd_tail != kbd_head) {
         uint8_t sc = kbd_buffer[kbd_tail % KBD_BUFFER_SIZE];
         kbd_tail++;
-        keyboard_handle_scancode(sc);  // may run a whole shell command
+
+        // Decoding and line editing must not be interleaved with other
+        // threads' output on the terminal
+        preempt_disable();
+        keyboard_handle_scancode(sc);
+        preempt_enable();
+
+        // A finished line runs outside that section, so commands can be
+        // preempted and can sleep
+        if (cmdline_line_ready())
+            cmdline_run();
     }
 }
 

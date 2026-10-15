@@ -93,16 +93,11 @@ void kernel_main(uint32_t magic, uintptr_t mb_info_phys) {
 
     enable_interrupts();
 
-    // Main loop: interrupt handlers only queue work; it is processed here
-    // with interrupts enabled, so shell commands never block the timer
+    // Main loop (the shell): interrupt handlers only queue work; it is
+    // processed here with interrupts enabled, so shell commands never block
+    // the timer. Waiting for input lets other threads run.
     while (1) {
         keyboard_process();
-
-        // Sleep until the next interrupt unless input arrived meanwhile
-        disable_interrupts();
-        if (keyboard_has_input())
-            enable_interrupts();
-        else
-            enable_interrupts_and_halt();
+        keyboard_wait_for_input();
     }
 }
