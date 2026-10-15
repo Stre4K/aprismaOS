@@ -289,7 +289,11 @@ jobs:
           else
             IMAGE="--kernel ${{ matrix.artifact }}/aprisma.kernel"
           fi
-          python3 scripts/qemu_boot_test.py --arch ${{ matrix.arch }} $IMAGE --timeout 120 --check-serial \
+          # User mode only exists on x86_64 so far
+          if [ "${{ matrix.arch }}" = "x86_64" ]; then
+            set -- --run "run hello" "Hello from user mode!" --run "test user" "user test: [0-9]+ wakeups during spin, passed"
+          fi
+          python3 scripts/qemu_boot_test.py --arch ${{ matrix.arch }} $IMAGE --timeout 120 --check-serial "$@" \
             --run "test threads" "threads test: [0-9]+ spinner loops while preempted, passed" \
             --run "test heap" "heap test: peak heap [0-9]+ KB, passed" \
             --run "test timer" "timer test: [0-9]+ ticks during the command, passed" \
