@@ -313,9 +313,8 @@ if [ "$GEN_COMPILE_DB" = "1" ]; then
     # ============================
 
     #ROOTDIR=$(pwd)
-    OBJ_DIR="$ROOTDIR/build/objects"
+    OBJ_DIR="$ROOTDIR/build/objects/$HOSTARCH"
     SYSROOT="$ROOTDIR/build/AprismaOS/sysroot"
-    CC="i686-elf-gcc"
 
     # Common flags
     CFLAGS="-O2 -g -ffreestanding -Wall -Wextra -nostdlib -nostdinc -Werror"
@@ -363,12 +362,21 @@ if [ "$GEN_COMPILE_DB" = "1" ]; then
         #    cmd="$CC $CFLAGS $KERNEL_CPPFLAGS -c $f -o $obj"
         #fi
 
+        # Arch-specific files use their own compiler and headers; shared
+        # files use the architecture selected with --compiler
+        case "$rel" in
+            arch/i386/*)   FILE_CC=i686-elf-gcc;   FILE_ARCH=i386 ;;
+            arch/x86_64/*) FILE_CC=x86_64-elf-gcc; FILE_ARCH=x86_64 ;;
+            *)             FILE_CC="$CC";          FILE_ARCH="$HOSTARCH" ;;
+        esac
+        ARCH_INCLUDE="-Isrc/kernel/arch/$FILE_ARCH/include"
+
         case "$f" in
             *.c)
-                cmd="$CC $CFLAGS $KERNEL_CPPFLAGS -std=gnu11 -c $f -o $obj"
+                cmd="$FILE_CC $CFLAGS $ARCH_INCLUDE $KERNEL_CPPFLAGS -std=gnu11 -c $f -o $obj"
                 ;;
             *)
-                cmd="$CC $CFLAGS $KERNEL_CPPFLAGS -c $f -o $obj"
+                cmd="$FILE_CC $CFLAGS $ARCH_INCLUDE $KERNEL_CPPFLAGS -c $f -o $obj"
                 ;;
         esac
         add_entry "$f" "$ROOTDIR" "$cmd"
