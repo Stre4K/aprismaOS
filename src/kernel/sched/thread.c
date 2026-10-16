@@ -26,6 +26,7 @@
 #include <kernel/mm/pmm.h>
 #include <kernel/panic.h>
 #ifdef CONFIG_USERMODE
+#include <kernel/arch/fpu.h>
 #include <kernel/arch/syscall.h>
 #include <kernel/proc.h>
 #endif
@@ -129,6 +130,7 @@ static void reap_dead_threads(void)
 #ifdef CONFIG_USERMODE
             if (t->process)
                 process_thread_reaped(t->process);  // frees its address space
+            kfree(t->fpu_state);
 #endif
             stack_free(t->stack_slot);
             kfree(t);
@@ -160,6 +162,13 @@ static void schedule(void)
     if (next != prev) {
         current = next;
 #ifdef CONFIG_USERMODE
+        // User code's x87/SSE registers belong to its thread; the kernel
+        // never touches them, so they only change hands here
+        if (prev->fpu_state)
+            arch_fpu_save(prev->fpu_state);
+        if (next->fpu_state)
+            arch_fpu_restore(next->fpu_state);
+
         // Interrupts from user mode arrive on the thread's own kernel
         // stack, and each process has its own address space
         if (next->kstack_top)
@@ -216,6 +225,23 @@ static thread_t *thread_new(const char *name, void (*entry)(void *), void *arg)
     return t;
 }
 
+#ifdef CONFIG_USERMODE
+// Undo thread_new() for a thread that was never queued
+static void thread_discard(thread_t *t)
+{
+    unsigned long flags = irq_save();
+    for (thread_t **link = &all_threads; *link; link = &(*link)->all_next) {
+        if (*link == t) {
+            *link = t->all_next;
+            break;
+        }
+    }
+    stack_free(t->stack_slot);
+    irq_restore(flags);
+    kfree(t);
+}
+#endif
+
 /* ---- public API ---- */
 
 void sched_init(void)
@@ -257,6 +283,16 @@ thread_t *thread_create_in(const char *name, void (*entry)(void *), void *arg,
 
     t->space = space;
     t->process = process;
+
+    // Threads running user code get their own x87/SSE state
+    if (process) {
+        t->fpu_state = kmalloc(FPU_STATE_SIZE);  // heap blocks are 16-byte aligned
+        if (t->fpu_state == NULL) {
+            thread_discard(t);
+            return NULL;
+        }
+        arch_fpu_init_state(t->fpu_state);
+    }
 
     unsigned long flags = irq_save();
     run_queue_push(t);

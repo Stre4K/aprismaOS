@@ -37,6 +37,7 @@ typedef struct thread {
     uintptr_t space;             // address space, 0 = the kernel's
     struct process *process;     // user process this thread runs, or NULL
     struct thread *wait_next;    // link in a wait_queue_t while blocked on it
+    void *fpu_state;             // x87/SSE save area (user threads only), or NULL
     struct thread *next;         // run queue link
     struct thread *all_next;     // list of all threads
 } thread_t;
