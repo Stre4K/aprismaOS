@@ -24,28 +24,32 @@ ifeq ($(HOSTARCH),x86_64)
 
 PROGRAMS := $(sort $(basename $(notdir $(wildcard $(SRC_DIR)/programs/*.c))))
 
-# No SSE: the kernel does not save SSE/FPU registers between processes yet
-CFLAGS  := -O2 -g -std=gnu11 -ffreestanding -fno-pie -mgeneral-regs-only \
+# Programs may use x87/SSE: the kernel saves those registers per process.
+# No errno in the runtime, so math builtins (e.g. sqrt) compile to plain
+# instructions instead of library calls.
+CFLAGS  := -O2 -g -std=gnu11 -ffreestanding -fno-pie -fno-math-errno \
            -Wall -Wextra -Werror -I$(SRC_DIR)/lib -I$(ROOTDIR)/src/kernel/include
 LDFLAGS := -nostdlib -static -no-pie -z max-page-size=0x1000 -T $(SRC_DIR)/user.ld
 
 LIB_OBJS := $(OBJ_DIR)/lib/start.o $(OBJ_DIR)/lib/ulib.o
+
+# Objects also depend on this Makefile, so changing CFLAGS rebuilds them
 ELFS     := $(patsubst %,$(OBJ_DIR)/bin/%.elf,$(PROGRAMS))
 TABLE    := $(OBJ_DIR)/user_programs.o
 
 all: $(TABLE)
 
-$(OBJ_DIR)/lib/%.o: $(SRC_DIR)/lib/%.c
+$(OBJ_DIR)/lib/%.o: $(SRC_DIR)/lib/%.c $(SRC_DIR)/Makefile
 	@mkdir -p $(dir $@)
 	@echo "$(CYAN)[user] Compiling $(notdir $<)$(RESET)"
 	@$(CC) $(CFLAGS) -MD -MP -c $< -o $@
 
-$(OBJ_DIR)/lib/%.o: $(SRC_DIR)/lib/%.S
+$(OBJ_DIR)/lib/%.o: $(SRC_DIR)/lib/%.S $(SRC_DIR)/Makefile
 	@mkdir -p $(dir $@)
 	@echo "$(CYAN)[user] Compiling $(notdir $<)$(RESET)"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/programs/%.o: $(SRC_DIR)/programs/%.c
+$(OBJ_DIR)/programs/%.o: $(SRC_DIR)/programs/%.c $(SRC_DIR)/Makefile
 	@mkdir -p $(dir $@)
 	@echo "$(CYAN)[user] Compiling $(notdir $<)$(RESET)"
 	@$(CC) $(CFLAGS) -MD -MP -c $< -o $@

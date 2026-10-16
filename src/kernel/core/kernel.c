@@ -20,6 +20,9 @@
 #include <kernel/mm/heap.h>
 #include <kernel/sched.h>
 #include <kernel/console.h>
+#ifdef CONFIG_USERMODE
+#include <kernel/arch/fpu.h>
+#endif
 #include <kernel/shell/shell.h>
 
 // mb_info_phys is the physical address the bootloader passed in EBX
@@ -91,6 +94,12 @@ void kernel_main(uint32_t magic, uintptr_t mb_info_phys) {
     // preempting it as soon as interrupts are enabled
     sched_init();
     printk("[SCHED] Preemptive scheduler started\n");
+#endif
+
+#ifdef CONFIG_USERMODE
+    // User programs may use x87/SSE; each process gets its own register state
+    arch_fpu_init();
+    printk("[FPU] SSE enabled; x87/SSE state saved per process\n");
 #endif
 
     enable_interrupts();
