@@ -19,6 +19,16 @@ long read(int fd, void *buf, size_t len)
     return syscall3(SYS_READ, fd, (long)buf, (long)len);
 }
 
+long open(const char *path)
+{
+    return syscall3(SYS_OPEN, (long)path, 0, 0);
+}
+
+long close(int fd)
+{
+    return syscall3(SYS_CLOSE, fd, 0, 0);
+}
+
 long getpid(void)
 {
     return syscall3(SYS_GETPID, 0, 0, 0);

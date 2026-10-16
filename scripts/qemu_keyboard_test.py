@@ -21,7 +21,7 @@ import tempfile
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from qemu_boot_test import BOOT_DONE, Monitor, TestFailure, read_screen, wait_for  # noqa: E402
+from qemu_boot_test import BOOT_DONE, Monitor, TestFailure, find_initrd, read_screen, wait_for  # noqa: E402
 
 KEY_DELAY = 0.03  # seconds between key events
 
@@ -107,7 +107,7 @@ class Vm:
                 os.unlink(path)
 
         self.qemu = subprocess.Popen(
-            [f"qemu-system-{args.arch}", "-kernel", args.boot_kernel, "-m", "128M",
+            [f"qemu-system-{args.arch}", "-kernel", args.boot_kernel, *args.initrd_args, "-m", "128M",
              "-display", "none", "-no-reboot",
              "-monitor", f"unix:{monitor_path},server,nowait",
              "-qmp", f"unix:{qmp_path},server,nowait"],
@@ -341,6 +341,8 @@ def main():
 
     failed = 0
     with tempfile.TemporaryDirectory(prefix="aprisma-kbd-") as tmp:
+        initrd = find_initrd(args.kernel, None, False)
+        args.initrd_args = ["-initrd", initrd] if initrd else []
         args.boot_kernel = os.path.abspath(args.kernel)
         if args.arch == "x86_64":
             # QEMU's built-in Multiboot loader only accepts 32-bit ELF files

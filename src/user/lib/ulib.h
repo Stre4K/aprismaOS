@@ -23,6 +23,8 @@ static inline long syscall3(long number, long a, long b, long c)
 __attribute__((noreturn)) void exit(int code);
 long write(int fd, const void *buf, size_t len);
 long read(int fd, void *buf, size_t len);
+long open(const char *path);
+long close(int fd);
 long getpid(void);
 long sleep(unsigned ms);
 long yield(void);

@@ -334,6 +334,7 @@ static void test_user(void)
     // Exit codes and system call error handling
     errors += !expect_exit("exitcode", 42);
     errors += !expect_exit("badptr", 0);
+    errors += !expect_exit("files", 0);  // open/read/close on the ramdisk
 
     // Faults in user mode end the process, not the kernel
     errors += !expect_killed("crash");

@@ -249,10 +249,13 @@ if [ "$BUILD_TYPE" = "iso" ]; then
     ISO_DIR=$ROOTDIR/build/isodir
     mkdir -p "$ISO_DIR/boot/grub"
     cp "$KERNEL_PATH" "$ISO_DIR/boot/aprisma.kernel"
+    cp "$SYSROOT/boot/initrd.tar" "$ISO_DIR/boot/initrd.tar"
 
+    # The ramdisk is loaded as a Multiboot module next to the kernel
     cat > "$ISO_DIR/boot/grub/grub.cfg" << EOF
 menuentry "aprisma" {
     multiboot /boot/aprisma.kernel root=/dev/null
+    module /boot/initrd.tar
 }
 EOF
 
@@ -279,7 +282,9 @@ if [ -n "$RUN_MODE" ]; then
             fi
             echo "Running kernel in QEMU: $RUN_KERNEL"
             echo "Serial console on this terminal (Ctrl+A C: QEMU monitor, Ctrl+A X: quit)"
-            $QEMU -kernel "$RUN_KERNEL" -serial mon:stdio
+            INITRD_ARGS=""
+            [ -f "$SYSROOT/boot/initrd.tar" ] && INITRD_ARGS="-initrd $SYSROOT/boot/initrd.tar"
+            $QEMU -kernel "$RUN_KERNEL" $INITRD_ARGS -serial mon:stdio
             ;;
         iso)
             RUN_ISO=${RUN_PATH:-"$ISO_OUTPUT"}

@@ -19,19 +19,26 @@
 #include <kernel/panic.h>
 #include <kernel/printk.h>
 #include <kernel/sched.h>
+#include <stdio.h>
 #include <string.h>
 
 #define PAGE_SIZE 4096
 
 static int next_pid = 1;
 
-const user_program_t *user_program_find(const char *name)
+const fs_node_t *process_find_program(const char *name)
 {
-    for (const user_program_t *p = user_programs; p->name; p++) {
-        if (strcmp(p->name, name) == 0)
-            return p;
+    char path[FS_PATH_MAX];
+
+    if (strchr(name, '/')) {
+        strncpy(path, name, sizeof(path) - 1);
+        path[sizeof(path) - 1] = '\0';
+    } else {
+        snprintf(path, sizeof(path), "/bin/%s", name);
     }
-    return NULL;
+
+    const fs_node_t *node = fs_lookup(path);
+    return node && !node->is_dir ? node : NULL;
 }
 
 // First code of a process's thread: the scheduler has already loaded the
@@ -60,7 +67,7 @@ static bool map_user_stack(process_t *p)
 
 process_t *process_spawn(const char *name)
 {
-    const user_program_t *program = user_program_find(name);
+    const fs_node_t *program = process_find_program(name);
     if (program == NULL)
         return NULL;
 
@@ -69,14 +76,15 @@ process_t *process_spawn(const char *name)
         return NULL;
 
     p->pid = __atomic_fetch_add(&next_pid, 1, __ATOMIC_SEQ_CST);
-    strncpy(p->name, name, PROCESS_NAME_LEN - 1);
+    const char *base = strrchr(name, '/');
+    strncpy(p->name, base ? base + 1 : name, PROCESS_NAME_LEN - 1);
     p->refs = 2;
 
     p->space = paging_create_space();
     if (p->space == 0)
         goto fail;
 
-    p->entry = elf_load(p->space, program->start, (size_t)(program->end - program->start));
+    p->entry = elf_load(p->space, program->data, program->size);
     if (p->entry == 0 || !map_user_stack(p))
         goto fail;
 
