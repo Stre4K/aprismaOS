@@ -1,7 +1,7 @@
 // ulib.h
-// Minimal runtime for AprismaOS user programs: system call wrappers and a
-// few output helpers. System call numbers and error codes come from the
-// kernel's ABI header.
+// Minimal runtime for AprismaOS user programs: system call wrappers, memory
+// allocation and a few string and output helpers. System call numbers and
+// error codes come from the kernel's ABI header.
 
 #ifndef ULIB_H
 #define ULIB_H
@@ -31,6 +31,25 @@ long yield(void);
 long spawn(const char *path, char *const argv[]);
 long wait(int pid, int *code);
 long readdir(const char *dir, size_t index, dirent_t *entry);
+long brk(void *end);           // new end of the heap, or -ENOMEM
+void *sbrk(long increment);    // old end of the heap, or (void *)-1
+
+// Heap memory (malloc.c). Blocks are 16-byte aligned; a bad or twice
+// freed pointer ends the program with exit code 127.
+void *malloc(size_t size);
+void free(void *ptr);
+void *calloc(size_t count, size_t size);
+void *realloc(void *ptr, size_t size);
+
+typedef struct {
+    size_t used_bytes, free_bytes;   // payload bytes in used and free blocks
+    size_t used_blocks, free_blocks;
+} malloc_stats_t;
+void malloc_stats(malloc_stats_t *stats);
+int malloc_check(void);        // 0 if the heap's bookkeeping is consistent
+
+void *memset(void *dst, int value, size_t n);
+void *memcpy(void *dst, const void *src, size_t n);
 
 size_t strlen(const char *s);
 int strcmp(const char *a, const char *b);

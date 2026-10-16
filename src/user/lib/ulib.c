@@ -59,6 +59,38 @@ long readdir(const char *dir, size_t index, dirent_t *entry)
     return syscall3(SYS_READDIR, (long)dir, (long)index, (long)entry);
 }
 
+long brk(void *end)
+{
+    return syscall3(SYS_BRK, (long)end, 0, 0);
+}
+
+void *sbrk(long increment)
+{
+    long current = brk(0);
+    if (increment == 0)
+        return (void *)current;
+    if (brk((void *)(current + increment)) < 0)
+        return (void *)-1;
+    return (void *)current;
+}
+
+void *memset(void *dst, int value, size_t n)
+{
+    unsigned char *d = dst;
+    while (n--)
+        *d++ = (unsigned char)value;
+    return dst;
+}
+
+void *memcpy(void *dst, const void *src, size_t n)
+{
+    unsigned char *d = dst;
+    const unsigned char *s = src;
+    while (n--)
+        *d++ = *s++;
+    return dst;
+}
+
 size_t strlen(const char *s)
 {
     size_t n = 0;
