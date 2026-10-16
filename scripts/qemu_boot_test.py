@@ -109,7 +109,7 @@ def read_serial_log(path):
         return ""
 
 
-def type_text(monitor, text):
+def type_keys(monitor, text):
     for ch in text:
         if ch.isalnum():
             key = ch.lower() if not ch.isupper() else "shift-" + ch.lower()
@@ -119,7 +119,36 @@ def type_text(monitor, text):
             raise TestFailure(f"don't know how to type {ch!r}")
         monitor.command(f"sendkey {key}")
         time.sleep(0.02)
-    monitor.command("sendkey ret")
+
+
+def command_typed(screen, command):
+    """True if the line being typed (the last one on screen) is `command`,
+    alone or after a prompt."""
+    lines = screen.rstrip().split("\n")
+    line = lines[-1] if lines else ""
+    return line == command or line.endswith(" " + command)
+
+
+def type_command(monitor, dump_path, command, attempts=3):
+    """Type a command line and press Enter.
+
+    QEMU's PS/2 keyboard buffers only a few key presses, so when the host
+    is busy and the guest falls behind, keys are dropped. Wait until the
+    whole command shows up on screen (the guest has read every key) before
+    pressing Enter; if keys went missing, cancel the line with Ctrl+C and
+    type it again."""
+    for _ in range(attempts):
+        type_keys(monitor, command)
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            if command_typed(read_screen(monitor, dump_path), command):
+                monitor.command("sendkey ret")
+                return
+            time.sleep(0.1)
+        print(f"note: key presses lost while typing '{command}', typing it again", file=sys.stderr)
+        monitor.command("sendkey ctrl-c")
+        time.sleep(0.5)
+    raise TestFailure(f"could not type '{command}': key presses were lost")
 
 
 def wait_for(monitor, qemu, dump_path, pattern, timeout, skip_grub_menu=True):
@@ -211,7 +240,7 @@ def main():
             print(f"ok: {args.arch} {'kernel' if args.kernel else 'ISO'} booted")
 
             for command, expect in args.run:
-                type_text(monitor, command)
+                type_command(monitor, dump_path, command)
                 wait_for(monitor, qemu, dump_path, expect, args.timeout, skip_grub_menu=False)
                 print(f"ok: '{command}' printed /{expect}/")
 
