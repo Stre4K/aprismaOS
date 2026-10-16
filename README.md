@@ -61,11 +61,13 @@ What works today (both architectures unless noted):
 - **Filesystem**: a read-only ramdisk (a tar archive the bootloader loads next to the kernel)
   with `/bin` for programs and files like `/etc/motd`.
 - **User mode** (x86_64): programs run in ring 3 and use system calls (`int 0x80`) for
-  console and file I/O, starting and waiting for other programs, listing directories, and
-  growing their heap (`brk`). Faults end the program, not the kernel; Ctrl+C ends the
-  program in the foreground. x87/SSE registers are saved for each process.
-- **User space** (x86_64): a C runtime with `malloc`/`free`, a shell (`/bin/sh`) and
-  programs such as `ls`, `cat`, `echo` and `sort`.
+  file descriptors (the console, ramdisk files and pipes), starting and waiting for other
+  programs, listing directories, and growing their heap (`brk`). Faults end the program,
+  not the kernel; Ctrl+C ends the foreground process group. x87/SSE registers are saved
+  for each process.
+- **User space** (x86_64): a C runtime with `malloc`/`free`, a shell (`/bin/sh`) with
+  pipelines and input redirection, and programs such as `ls`, `cat`, `echo`, `sort`, `wc`
+  and `yes`.
 - **Kernel shell**: built-in commands for debugging (`help` lists them), also reachable when
   there is no ramdisk.
 - **Tests**: host unit tests for libc and kernel helpers, and QEMU tests that boot the system
@@ -82,12 +84,14 @@ With the ramdisk, the 64-bit build boots into the user-space shell:
 $ ls /bin
 $ cat /etc/motd
 $ echo "two words" and more
-$ sort /etc/motd
+$ ls /bin | sort | wc
+$ sort < /etc/motd
 ```
 
-Type a program's name and its arguments; `help` lists the built-in commands. Ctrl+C ends
-the running program (or starts a new line at the prompt), Ctrl+D ends input, and `exit` (or
-Ctrl+D at the prompt) leaves for the kernel shell. There, `help` lists the kernel's own
+Type a program's name and its arguments; `a | b` sends a's output to b, and `a < file` lets
+a read a file. `help` lists the built-in commands. Ctrl+C ends the running programs (or
+starts a new line at the prompt), Ctrl+D ends input, and `exit` (or Ctrl+D at the prompt)
+leaves for the kernel shell. There, `help` lists the kernel's own
 commands, `run <program> [arguments...]` starts a program and `test` runs self-tests
 (e.g. `test user`). The 32-bit build starts in the kernel shell.
 
