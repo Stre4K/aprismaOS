@@ -428,6 +428,9 @@ static void test_user(void)
     // Processes starting processes: spawn, wait and readdir from user mode
     errors += !expect_exit("spawner", 0);
 
+    // The writable filesystem
+    errors += !expect_exit("fstest", 0);
+
     // Pipes, descriptors and spawn options
     errors += !expect_exit("pipes", 0);
     errors += !interrupt_wakes_pipe_writer();
@@ -492,6 +495,7 @@ static void test_user(void)
     errors += !expect_exit("heaptest", 0);     // its heap pages must come back
     errors += !heap_out_of_memory();           // and those of a brk that failed halfway
     errors += !expect_exit("pipes", 0);        // pipes and open files must be freed
+    errors += !expect_exit("fstest", 0);       // and files made and removed in /tmp
     thread_sleep(50);
 
     kheap_stats_t heap_after;
