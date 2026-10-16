@@ -28,8 +28,12 @@ long close(int fd);
 long getpid(void);
 long sleep(unsigned ms);
 long yield(void);
+long spawn(const char *path, char *const argv[]);
+long wait(int pid, int *code);
+long readdir(const char *dir, size_t index, dirent_t *entry);
 
 size_t strlen(const char *s);
+int strcmp(const char *a, const char *b);
 void print(const char *s);
 void print_int(long value);
 

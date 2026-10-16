@@ -44,12 +44,36 @@ long yield(void)
     return syscall3(SYS_YIELD, 0, 0, 0);
 }
 
+long spawn(const char *path, char *const argv[])
+{
+    return syscall3(SYS_SPAWN, (long)path, (long)argv, 0);
+}
+
+long wait(int pid, int *code)
+{
+    return syscall3(SYS_WAIT, pid, (long)code, 0);
+}
+
+long readdir(const char *dir, size_t index, dirent_t *entry)
+{
+    return syscall3(SYS_READDIR, (long)dir, (long)index, (long)entry);
+}
+
 size_t strlen(const char *s)
 {
     size_t n = 0;
     while (s[n])
         n++;
     return n;
+}
+
+int strcmp(const char *a, const char *b)
+{
+    while (*a && *a == *b) {
+        a++;
+        b++;
+    }
+    return (unsigned char)*a - (unsigned char)*b;
 }
 
 void print(const char *s)
