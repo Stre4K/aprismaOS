@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  # 1. Build kernel on AMD64 (full build)
+  # 1. Build the i386 kernel on AMD64 (full build)
   build-kernel-amd64:
     runs-on: ubuntu-latest
     steps:
@@ -18,7 +18,7 @@ jobs:
         run: |
           docker run --rm -v $PWD:/workspace -w /workspace \
             stre4k/aprisma:latest \
-            sh aprisma.sh --build iso
+            sh aprisma.sh --compiler i686-elf-gcc --build iso
 
       - name: Upload kernel artifact (amd64)
         uses: actions/upload-artifact@v4
@@ -80,7 +80,7 @@ jobs:
         run: |
           docker run --rm -v $PWD:/workspace -w /workspace \
             stre4k/aprisma:latest \
-            sh aprisma.sh --build kernel
+            sh aprisma.sh --compiler i686-elf-gcc --build kernel
 
       - name: Upload kernel artifact (arm64)
         uses: actions/upload-artifact@v4
@@ -101,7 +101,7 @@ jobs:
           brew install make xorriso qemu i686-elf-binutils i686-elf-gcc i686-elf-grub
       - name: Build kernel + ISO (macOS)
         #run: sh aprisma.sh --build iso --homebrew-grub
-        run: sh aprisma.sh --default
+        run: sh aprisma.sh --compiler i686-elf-gcc --default
 
       - name: Upload kernel artifact (macOS)
         uses: actions/upload-artifact@v4
