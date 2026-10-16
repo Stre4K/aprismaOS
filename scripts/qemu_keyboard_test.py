@@ -21,12 +21,14 @@ import tempfile
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from qemu_boot_test import BOOT_DONE, Monitor, TestFailure, find_initrd, read_screen, wait_for  # noqa: E402
+from qemu_boot_test import (BOOT_DONE, KERNEL_SHELL, Monitor, TestFailure, find_initrd,  # noqa: E402
+                            read_screen, wait_for, wait_for_shell)
 
 KEY_DELAY = 0.03  # seconds between key events
 
 # QMP qcodes for characters that are not plain lowercase letters or digits
 QCODES = {" ": "spc", "-": "minus", ".": "dot", "/": "slash", "=": "equal", ",": "comma", "'": "apostrophe"}
+SHIFTED = {'"': "apostrophe"}
 
 
 class Qmp:
@@ -90,6 +92,8 @@ class Qmp:
                 self.tap(ch)
             elif ch in QCODES:
                 self.tap(QCODES[ch])
+            elif ch in SHIFTED:
+                self.tap("shift", SHIFTED[ch])
             else:
                 raise TestFailure(f"don't know how to type {ch!r}")
 
@@ -97,7 +101,7 @@ class Qmp:
 class Vm:
     """A booted VM with a monitor (screen) and QMP (keys) connection."""
 
-    def __init__(self, args, tmp):
+    def __init__(self, args, tmp, user_shell=False):
         self.tmp = tmp
         self.dump = os.path.join(tmp, "vga.bin")
         monitor_path = os.path.join(tmp, "monitor.sock")
@@ -116,6 +120,14 @@ class Vm:
         self.qmp = Qmp(qmp_path, timeout=10)
         self.timeout = args.timeout
         self.wait(BOOT_DONE)
+
+        # Scenarios use the kernel shell unless marked @user_shell
+        shell = wait_for_shell(self.monitor, self.qemu, self.dump, self.timeout)
+        if shell == "kernel" and user_shell:
+            raise TestFailure("the kernel shell started instead of /bin/sh")
+        if shell == "user" and not user_shell:
+            self.qmp.type("exit\n")
+            self.wait(KERNEL_SHELL)
 
     def screen(self):
         return read_screen(self.monitor, self.dump)
@@ -236,6 +248,12 @@ def usermode(scenario):
     """Mark a scenario that needs user programs (x86_64 only so far)."""
     scenario.usermode = True
     return scenario
+
+
+def user_shell(scenario):
+    """Mark a scenario that types into /bin/sh rather than the kernel shell."""
+    scenario.user_shell = True
+    return usermode(scenario)
 
 
 @usermode
@@ -369,7 +387,7 @@ def main():
                 continue
             vm = None
             try:
-                vm = Vm(args, tmp)
+                vm = Vm(args, tmp, user_shell=getattr(scenario, "user_shell", False))
                 scenario(vm)
                 print(f"ok: {scenario.__name__}")
             except TestFailure as e:

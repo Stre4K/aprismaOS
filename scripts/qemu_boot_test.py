@@ -3,8 +3,8 @@
 
 The kernel only writes to the VGA text screen, so the test reads the screen
 straight out of guest memory (physical 0xB8000) through the QEMU monitor.
-It waits for the boot to finish, optionally types shell commands and waits
-for their output, and fails on a kernel panic, an unhandled exception, QEMU
+It waits for the boot to finish, optionally types shell commands (into the
+kernel shell, or with --shell user into /bin/sh) and waits for their output, and fails on a kernel panic, an unhandled exception, QEMU
 exiting (e.g. a triple fault, since -no-reboot is used) or a timeout. The
 kernel's serial output (COM1) is recorded too and printed on failure.
 
@@ -28,10 +28,16 @@ VGA_TEXT_ADDR = 0xB8000
 VGA_COLS, VGA_ROWS = 80, 25
 
 BOOT_DONE = r"\[KEYBOARD\] Initialized successfully"
+# With a ramdisk (x86_64) the kernel starts the user-space shell, and the
+# kernel shell after it exits
+KERNEL_SHELL = r"\[SHELL\] Kernel shell ready"
+USER_SHELL = r"\[SHELL\] Starting /bin/sh"
+USER_PROMPT = r"(?m)^\$$"  # "$ " without its trailing space
 FAILURE_PATTERNS = [r"KERNEL PANIC", r"Unhandled CPU exception", r"Unhandled interrupt"]
 
 # QEMU sendkey names for characters that are not plain letters or digits
-KEY_NAMES = {" ": "spc", "-": "minus", ".": "dot", "/": "slash", "=": "equal", ",": "comma"}
+KEY_NAMES = {" ": "spc", "-": "minus", ".": "dot", "/": "slash", "=": "equal", ",": "comma",
+             "'": "apostrophe", "\"": "shift-apostrophe"}
 
 
 class TestFailure(Exception):
@@ -180,6 +186,15 @@ def wait_for(monitor, qemu, dump_path, pattern, timeout, skip_grub_menu=True):
     raise TestFailure(f"timed out after {timeout}s waiting for /{pattern}/\n{screen}")
 
 
+def wait_for_shell(monitor, qemu, dump_path, timeout):
+    """Wait until a shell takes input; returns "user" or "kernel"."""
+    screen = wait_for(monitor, qemu, dump_path, f"{KERNEL_SHELL}|{USER_SHELL}", timeout, skip_grub_menu=False)
+    if re.search(USER_SHELL, screen):
+        wait_for(monitor, qemu, dump_path, USER_PROMPT, timeout, skip_grub_menu=False)
+        return "user"
+    return "kernel"
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--arch", choices=["i386", "x86_64"], required=True)
@@ -189,6 +204,9 @@ def main():
     parser.add_argument("--run", nargs=2, action="append", default=[], metavar=("COMMAND", "EXPECT"),
                         help="after boot, type COMMAND and wait for the regex EXPECT (repeatable)")
     parser.add_argument("--timeout", type=float, default=60, help="seconds allowed for each step")
+    parser.add_argument("--shell", choices=["kernel", "user"], default="kernel",
+                        help="where --run commands go: the kernel shell (default; the user shell is left "
+                             "with 'exit' first) or the user-space shell /bin/sh")
     parser.add_argument("--boot-done", default=BOOT_DONE, metavar="REGEX",
                         help="screen text that marks the end of the boot (default: keyboard initialized)")
     parser.add_argument("--initrd", help="ramdisk to load with --kernel (default: initrd.tar next to the kernel)")
@@ -238,6 +256,15 @@ def main():
 
             wait_for(monitor, qemu, dump_path, args.boot_done, args.timeout)
             print(f"ok: {args.arch} {'kernel' if args.kernel else 'ISO'} booted")
+
+            if args.run:
+                shell = wait_for_shell(monitor, qemu, dump_path, args.timeout)
+                if shell == "kernel" and args.shell == "user":
+                    raise TestFailure("the kernel shell started instead of /bin/sh")
+                if shell == "user" and args.shell == "kernel":
+                    type_command(monitor, dump_path, "exit")
+                    wait_for(monitor, qemu, dump_path, KERNEL_SHELL, args.timeout, skip_grub_menu=False)
+                print(f"ok: {args.shell} shell ready")
 
             for command, expect in args.run:
                 type_command(monitor, dump_path, command)
