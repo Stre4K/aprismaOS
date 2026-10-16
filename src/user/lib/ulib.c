@@ -19,9 +19,9 @@ long read(int fd, void *buf, size_t len)
     return syscall3(SYS_READ, fd, (long)buf, (long)len);
 }
 
-long open(const char *path)
+long open(const char *path, int flags)
 {
-    return syscall3(SYS_OPEN, (long)path, 0, 0);
+    return syscall3(SYS_OPEN, (long)path, flags, 0);
 }
 
 long close(int fd)
@@ -52,6 +52,42 @@ long spawn(const char *path, char *const argv[], const spawn_options_t *options)
 long pipe(int fds[2])
 {
     return syscall3(SYS_PIPE, (long)fds, 0, 0);
+}
+
+long dup2(int fd, int new_fd)
+{
+    return syscall3(SYS_DUP2, fd, new_fd, 0);
+}
+
+long mkdir(const char *path)
+{
+    return syscall3(SYS_MKDIR, (long)path, 0, 0);
+}
+
+long unlink(const char *path)
+{
+    return syscall3(SYS_UNLINK, (long)path, 0, 0);
+}
+
+long rmdir(const char *path)
+{
+    return syscall3(SYS_RMDIR, (long)path, 0, 0);
+}
+
+long stat(const char *path, stat_t *st)
+{
+    return syscall3(SYS_STAT, (long)path, (long)st, 0);
+}
+
+long fstat(int fd, stat_t *st)
+{
+    return syscall3(SYS_FSTAT, fd, (long)st, 0);
+}
+
+int isatty(int fd)
+{
+    stat_t st;
+    return fstat(fd, &st) == 0 && st.type == STAT_CONSOLE;
 }
 
 long wait(int pid, int *code)

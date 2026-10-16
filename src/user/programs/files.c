@@ -18,7 +18,7 @@ int main(void)
     char whole[512], pieces[512], piece[7];
 
     // Whole file in one read, then end of file
-    long fd = open("/etc/motd");
+    long fd = open("/etc/motd", O_RDONLY);
     if (fd < 3) {
         print("files: cannot open /etc/motd\n");
         return 1;
@@ -30,7 +30,7 @@ int main(void)
     bad += close(fd) != -EBADF;              // already closed
 
     // Small reads return the same bytes
-    fd = open("/etc/motd");
+    fd = open("/etc/motd", O_RDONLY);
     long total = 0, n;
     while ((n = read(fd, piece, sizeof(piece))) > 0 && total + n <= (long)sizeof(pieces)) {
         for (long i = 0; i < n; i++)
@@ -41,7 +41,7 @@ int main(void)
     close(fd);
 
     // Two descriptors keep their own position
-    long a = open("/etc/motd"), b = open("/etc/motd");
+    long a = open("/etc/motd", O_RDONLY), b = open("/etc/motd", O_RDONLY);
     char first_a[5], first_b[5];
     read(a, first_a, 5);
     read(b, first_b, 5);
@@ -50,17 +50,17 @@ int main(void)
     close(b);
 
     // Errors
-    bad += open("/no/such/file") != -ENOENT;
-    bad += open("/bin") != -EISDIR;
-    bad += open((const char *)0xFFFFFFFF80100000UL) != -EFAULT;  // kernel memory
-    bad += open((const char *)0) != -EFAULT;                     // NULL
+    bad += open("/no/such/file", O_RDONLY) != -ENOENT;
+    bad += open("/bin", O_RDONLY) != -EISDIR;
+    bad += open((const char *)0xFFFFFFFF80100000UL, O_RDONLY) != -EFAULT;  // kernel memory
+    bad += open((const char *)0, O_RDONLY) != -EFAULT;                     // NULL
     bad += read(42, piece, 1) != -EBADF;
 
     // Running out of descriptors
     long fds[MAX_FILES + 1];
     for (int i = 0; i < MAX_FILES; i++)
-        fds[i] = open("/etc/motd");
-    bad += open("/etc/motd") != -EMFILE;
+        fds[i] = open("/etc/motd", O_RDONLY);
+    bad += open("/etc/motd", O_RDONLY) != -EMFILE;
     for (int i = 0; i < MAX_FILES; i++)
         bad += close((int)fds[i]) != 0;
 

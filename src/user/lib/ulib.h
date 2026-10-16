@@ -23,13 +23,20 @@ static inline long syscall3(long number, long a, long b, long c)
 __attribute__((noreturn)) void exit(int code);
 long write(int fd, const void *buf, size_t len);
 long read(int fd, void *buf, size_t len);
-long open(const char *path);
+long open(const char *path, int flags);  // O_RDONLY, O_WRONLY | O_CREAT | O_TRUNC, ...
 long close(int fd);
 long getpid(void);
 long sleep(unsigned ms);
 long yield(void);
 long spawn(const char *path, char *const argv[], const spawn_options_t *options);
 long pipe(int fds[2]);
+long dup2(int fd, int new_fd);
+long mkdir(const char *path);
+long unlink(const char *path);
+long rmdir(const char *path);
+long stat(const char *path, stat_t *st);
+long fstat(int fd, stat_t *st);
+int isatty(int fd);  // 1 if fd is the console (keyboard and screen)
 long wait(int pid, int *code);
 long readdir(const char *dir, size_t index, dirent_t *entry);
 long brk(void *end);           // new end of the heap, or -ENOMEM

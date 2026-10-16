@@ -50,7 +50,7 @@ int main(int argc, char **argv)
 
     int failed = 0;
     for (int i = 1; i < argc; i++) {
-        long fd = open(argv[i]);
+        long fd = open(argv[i], O_RDONLY);
         if (fd < 0) {
             print("wc: ");
             print(argv[i]);

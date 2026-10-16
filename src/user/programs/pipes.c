@@ -111,7 +111,7 @@ static void check_basics(void)
     close(fds[1]);
     check(finish(reader) == 0, "a child read it all");
 
-    long fd = open("/etc/motd");
+    long fd = open("/etc/motd", O_RDONLY);
     check(write((int)fd, "x", 1) == -EBADF, "ramdisk files cannot be written");
     close((int)fd);
 }
@@ -125,14 +125,14 @@ static void check_errors(void)
     // A full table: pipe needs two free descriptors and takes none if it fails
     long fds[MAX_FDS];
     int opened = 0;
-    while (opened < MAX_FDS && (fds[opened] = open("/etc/motd")) >= 0)
+    while (opened < MAX_FDS && (fds[opened] = open("/etc/motd", O_RDONLY)) >= 0)
         opened++;
     int pair[2];
     check(opened == MAX_FDS - 3, "13 descriptors next to 0, 1 and 2");
     check(pipe(pair) == -EMFILE, "pipe in a full table");
     close((int)fds[--opened]);
     check(pipe(pair) == -EMFILE, "pipe with one free descriptor");
-    check(open("/etc/motd") == fds[opened], "and the free one is still free");
+    check(open("/etc/motd", O_RDONLY) == fds[opened], "and the free one is still free");
     while (opened >= 0)
         close((int)fds[opened--]);
 
@@ -225,7 +225,7 @@ int main(int argc, char **argv)
 
     // stdin, stdout and stderr are ordinary descriptors
     check(close(0) == 0, "close stdin");
-    check(open("/etc/motd") == 0, "open takes descriptor 0 again");
+    check(open("/etc/motd", O_RDONLY) == 0, "open takes descriptor 0 again");
     char first;
     check(read(0, &first, 1) == 1 && first == 'W', "and reads the file through it");
 

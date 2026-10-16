@@ -199,7 +199,7 @@ static void run(command_t cmds[], int count, const char *input_file)
 
     int in = 0;  // stdin of the next program
     if (input_file) {
-        long fd = open(input_file);
+        long fd = open(input_file, O_RDONLY);
         if (fd < 0) {
             error(input_file, fd == -EISDIR ? ": is a directory" : ": no such file");
             return;

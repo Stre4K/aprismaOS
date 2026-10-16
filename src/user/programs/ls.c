@@ -16,30 +16,14 @@ static void print_entry(const char *name, const dirent_t *entry)
     print(" bytes\n");
 }
 
-// Find a file by listing its parent directory (there is no stat call)
 static int show_file(const char *path)
 {
-    char parent[DIRENT_NAME_MAX];
-    size_t slash = 0;
-    size_t len = strlen(path);
-    if (len >= sizeof(parent))
+    stat_t st;
+    if (stat(path, &st) < 0)
         return 1;
-    for (size_t i = 0; i < len; i++) {
-        parent[i] = path[i];
-        if (path[i] == '/')
-            slash = i;
-    }
-    parent[slash > 0 ? slash : 1] = '\0';  // "/README" -> "/"
-    const char *name = path + slash + 1;
-
-    dirent_t entry;
-    for (size_t i = 0; readdir(parent, i, &entry) > 0; i++) {
-        if (strcmp(entry.name, name) == 0) {
-            print_entry(path, &entry);
-            return 0;
-        }
-    }
-    return 1;
+    dirent_t entry = { .size = st.size, .is_dir = st.type == STAT_DIR };
+    print_entry(path, &entry);
+    return 0;
 }
 
 // With several arguments, each directory's listing gets a "name:" header

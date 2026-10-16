@@ -83,7 +83,7 @@ int main(int argc, char **argv)
         ok = read_lines(0);
     } else {
         for (int i = 1; i < argc && ok; i++) {
-            long fd = open(argv[i]);
+            long fd = open(argv[i], O_RDONLY);
             if (fd < 0) {
                 print("sort: ");
                 print(argv[i]);
