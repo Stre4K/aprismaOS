@@ -71,7 +71,7 @@ static void help(void)
 
 static void run(char *words[])
 {
-    long pid = spawn(words[0], words);
+    long pid = spawn(words[0], words, 0);
     if (pid < 0) {
         print("sh: ");
         print(words[0]);

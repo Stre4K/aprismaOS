@@ -9,6 +9,7 @@
 #ifdef CONFIG_USERMODE
 
 #include <kernel/arch/isr.h>
+#include <kernel/file.h>
 #include <kernel/fs.h>
 #include <kernel/sched.h>
 #include <stdbool.h>
@@ -16,18 +17,11 @@
 #include <stdint.h>
 
 #define PROCESS_NAME_LEN 16
-#define PROCESS_MAX_FILES 16  // open files per process
-#define PROCESS_FIRST_FD 3    // 0, 1 and 2 are the console
+#define PROCESS_MAX_FDS 16   // file descriptors per process, 0-2 included
 #define PROCESS_MAX_ARGS 32   // arguments passed to a program, argv[0] included
 #define PROCESS_MAX_ARG_BYTES 2048  // their total length with terminators
 
 struct thread;
-
-// A file a process has open (read-only)
-typedef struct {
-    const fs_node_t *node;     // NULL for a free slot
-    size_t offset;             // where the next read starts
-} open_file_t;
 
 typedef struct process {
     int pid;
@@ -45,11 +39,18 @@ typedef struct process {
     wait_queue_t *sleeping_on; // where process_sleep_on() blocked it, or NULL
     struct thread *waiter;     // thread blocked in process_wait()
     int refs;                  // its thread + the creator; freed at 0
-    open_file_t files[PROCESS_MAX_FILES];  // file descriptor PROCESS_FIRST_FD + index
+    file_t *fds[PROCESS_MAX_FDS];  // open files by descriptor (NULL: not open)
     struct process *children;  // started with the spawn system call, not yet waited for
     struct process *next_sibling;
     struct process *all_next;  // list of processes that have not exited
 } process_t;
+
+// How to start a process. NULL options mean stdin, stdout and stderr on
+// the console, and a new process group.
+typedef struct {
+    file_t *stdio[3];  // the child's descriptors 0, 1 and 2 (NULL: not open)
+    int pgid;          // process group to join, 0 for a new one (numbered like the child)
+} process_options_t;
 
 // Start a program from the filesystem in a new process: `name` is looked
 // up in /bin unless it contains a '/'. Returns NULL if there is no such
@@ -59,8 +60,10 @@ process_t *process_spawn(const char *name);
 
 // Same, passing arguments: the program's main() gets argc and argv, with
 // argv[0] by convention its name. Fails (NULL) for more than
-// PROCESS_MAX_ARGS arguments or PROCESS_MAX_ARG_BYTES of text.
-process_t *process_spawn_args(const char *name, int argc, const char *const argv[]);
+// PROCESS_MAX_ARGS arguments or PROCESS_MAX_ARG_BYTES of text. The child
+// takes its own references to the files in `options`.
+process_t *process_spawn_args(const char *name, int argc, const char *const argv[],
+                              const process_options_t *options);
 
 // The filesystem node of the program `name` would run, or NULL
 const fs_node_t *process_find_program(const char *name);

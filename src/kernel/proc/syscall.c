@@ -41,59 +41,55 @@ static bool user_buffer_ok(uint64_t addr, uint64_t len, bool write)
     return true;
 }
 
+// The open file behind a descriptor of the current process, or NULL
+static file_t *fd_file(uint64_t fd)
+{
+    if (fd >= PROCESS_MAX_FDS)
+        return NULL;
+    return process_current()->fds[fd];
+}
+
+// The lowest free descriptor, or -1
+static int free_fd(process_t *p, int after)
+{
+    for (int fd = after + 1; fd < PROCESS_MAX_FDS; fd++) {
+        if (p->fds[fd] == NULL)
+            return fd;
+    }
+    return -1;
+}
+
 static int64_t sys_write(uint64_t fd, uint64_t buf, uint64_t len)
 {
-    if (fd != 1 && fd != 2)
-        return -EBADF;  // only stdout and stderr (the console) so far
+    file_t *file = fd_file(fd);
+    if (file == NULL)
+        return -EBADF;
     if (len > WRITE_MAX)
         len = WRITE_MAX;
     if (!user_buffer_ok(buf, len, false))
         return -EFAULT;
-
-    printk("%.*s", (int)len, (const char *)(uintptr_t)buf);
-    return (int64_t)len;
-}
-
-// The open-file slot for a file descriptor, or NULL
-static open_file_t *file_slot(process_t *p, uint64_t fd)
-{
-    if (fd < PROCESS_FIRST_FD || fd >= PROCESS_FIRST_FD + PROCESS_MAX_FILES)
-        return NULL;
-    open_file_t *slot = &p->files[fd - PROCESS_FIRST_FD];
-    return slot->node ? slot : NULL;
+    return file_write(file, (const void *)(uintptr_t)buf, len);
 }
 
 static int64_t sys_read(uint64_t fd, uint64_t buf, uint64_t len)
 {
-    if (fd == 0) {
-        // Console: a line at a time
-        if (len > CONSOLE_LINE_MAX)
-            len = CONSOLE_LINE_MAX;
-        if (!user_buffer_ok(buf, len, true))
-            return -EFAULT;
-
-        char line[CONSOLE_LINE_MAX];
-        long n = console_read(line, len);
-        if (n > 0)
-            memcpy((void *)(uintptr_t)buf, line, (size_t)n);  // checked above
-        return n;
-    }
-
-    open_file_t *file = file_slot(process_current(), fd);
+    file_t *file = fd_file(fd);
     if (file == NULL)
         return -EBADF;
 
-    size_t left = file->node->size - file->offset;
-    if (len > left)
-        len = left;
-    if (len > READ_MAX)
-        len = READ_MAX;
+    // Only the part of the buffer a read can fill has to be valid
+    size_t most = READ_MAX;
+    if (file->type == FILE_CONSOLE)
+        most = CONSOLE_LINE_MAX;
+    else if (file->type == FILE_PIPE_READ)
+        most = PIPE_SIZE;
+    else if (file->type == FILE_RAMDISK)
+        most = file->node->size - file->offset;
+    if (len > most)
+        len = most;
     if (!user_buffer_ok(buf, len, true))
         return -EFAULT;
-
-    memcpy((void *)(uintptr_t)buf, file->node->data + file->offset, len);
-    file->offset += len;
-    return (int64_t)len;  // 0 at the end of the file
+    return file_read(file, (void *)(uintptr_t)buf, len);
 }
 
 // Copy a NUL-terminated string from user mode, checking each page it
@@ -127,22 +123,43 @@ static int64_t sys_open(uint64_t user_path)
         return -EISDIR;
 
     process_t *p = process_current();
-    for (int i = 0; i < PROCESS_MAX_FILES; i++) {
-        if (p->files[i].node == NULL) {
-            p->files[i].node = node;
-            p->files[i].offset = 0;
-            return PROCESS_FIRST_FD + i;
-        }
-    }
-    return -EMFILE;
+    int fd = free_fd(p, -1);
+    if (fd < 0)
+        return -EMFILE;
+    p->fds[fd] = file_open_node(node);
+    return p->fds[fd] ? fd : -ENOMEM;
 }
 
 static int64_t sys_close(uint64_t fd)
 {
-    open_file_t *file = file_slot(process_current(), fd);
+    file_t *file = fd_file(fd);
     if (file == NULL)
         return -EBADF;
-    file->node = NULL;
+    process_current()->fds[fd] = NULL;
+    file_put(file);
+    return 0;
+}
+
+static int64_t sys_pipe(uint64_t user_fds)
+{
+    if (!user_buffer_ok(user_fds, 2 * sizeof(int), true))
+        return -EFAULT;
+
+    process_t *p = process_current();
+    int read_fd = free_fd(p, -1);
+    int write_fd = read_fd < 0 ? -1 : free_fd(p, read_fd);
+    if (write_fd < 0)
+        return -EMFILE;
+
+    file_t *read_end, *write_end;
+    if (!file_pipe(&read_end, &write_end))
+        return -ENOMEM;
+    p->fds[read_fd] = read_end;
+    p->fds[write_fd] = write_end;
+
+    int *out = (int *)(uintptr_t)user_fds;  // checked above
+    out[0] = read_fd;
+    out[1] = write_fd;
     return 0;
 }
 
@@ -256,13 +273,62 @@ static int64_t copy_user_argv(spawn_request_t *req, uint64_t user_argv)
     return argc;
 }
 
-static int64_t sys_spawn(uint64_t user_path, uint64_t user_argv)
+// True if `pgid` is a group the caller may put a child in: its own, or
+// that of one of its children
+static bool may_join_group(process_t *self, int pgid)
+{
+    if (pgid == self->pgid)
+        return true;
+    for (process_t *child = self->children; child; child = child->next_sibling) {
+        if (child->pgid == pgid)
+            return true;
+    }
+    return false;
+}
+
+// Turn the user's spawn options into process options (no references taken)
+static int64_t read_spawn_options(uint64_t user_options, process_options_t *options)
+{
+    process_t *self = process_current();
+    spawn_options_t wanted;
+    if (user_options == 0) {
+        wanted = (spawn_options_t){ .fd = { 0, 1, 2 }, .pgid = 0 };  // inherit, new group
+    } else {
+        if (!user_buffer_ok(user_options, sizeof(wanted), false))
+            return -EFAULT;
+        memcpy(&wanted, (const void *)(uintptr_t)user_options, sizeof(wanted));  // checked above
+    }
+
+    for (int i = 0; i < 3; i++) {
+        if (wanted.fd[i] == -1) {
+            options->stdio[i] = NULL;  // not open in the child
+            continue;
+        }
+        if (wanted.fd[i] < 0 || wanted.fd[i] >= PROCESS_MAX_FDS)
+            return -EBADF;
+        options->stdio[i] = self->fds[wanted.fd[i]];
+        if (options->stdio[i] == NULL && user_options != 0)
+            return -EBADF;  // inheriting a closed 0, 1 or 2 just leaves it closed
+    }
+
+    if (wanted.pgid != 0 && !may_join_group(self, wanted.pgid))
+        return -EPERM;
+    options->pgid = wanted.pgid;
+    return 0;
+}
+
+static int64_t sys_spawn(uint64_t user_path, uint64_t user_argv, uint64_t user_options)
 {
     spawn_request_t *req = kmalloc(sizeof(*req));  // too big for the kernel stack
     if (req == NULL)
         return -ENOEXEC;
 
     int64_t result = copy_user_string(req->path, user_path, sizeof(req->path));
+    if (result < 0)
+        goto out;
+
+    process_options_t options;
+    result = read_spawn_options(user_options, &options);
     if (result < 0)
         goto out;
 
@@ -282,7 +348,7 @@ static int64_t sys_spawn(uint64_t user_path, uint64_t user_argv)
         result = -ENOENT;
         goto out;
     }
-    process_t *child = process_spawn_args(req->path, (int)argc, req->argv);
+    process_t *child = process_spawn_args(req->path, (int)argc, req->argv, &options);
     if (child == NULL) {
         result = -ENOEXEC;
         goto out;
@@ -346,10 +412,13 @@ void syscall_dispatch(regs_t *regs)
             result = sys_close(SYSCALL_ARG0(regs));
             break;
         case SYS_SPAWN:
-            result = sys_spawn(SYSCALL_ARG0(regs), SYSCALL_ARG1(regs));
+            result = sys_spawn(SYSCALL_ARG0(regs), SYSCALL_ARG1(regs), SYSCALL_ARG2(regs));
             break;
         case SYS_WAIT:
             result = sys_wait(SYSCALL_ARG0(regs), SYSCALL_ARG1(regs));
+            break;
+        case SYS_PIPE:
+            result = sys_pipe(SYSCALL_ARG0(regs));
             break;
         case SYS_BRK:
             result = sys_brk(SYSCALL_ARG0(regs));

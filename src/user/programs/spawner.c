@@ -24,7 +24,7 @@ static void check(int ok, const char *what)
 // Spawn and wait; returns the exit code, or -1000 - error
 static int run(const char *path, char *const argv[], long *how)
 {
-    long pid = spawn(path, argv);
+    long pid = spawn(path, argv, 0);
     if (pid < 0)
         return -1000 + (int)pid;
     int code = -999;
@@ -41,20 +41,20 @@ static void check_spawn(void)
     run("crash", 0, &how);
     check(how == WAIT_KILLED, "wait reports a killed child");
 
-    check(spawn("nope", 0) == -ENOENT, "no such program");
-    check(spawn("/bin", 0) == -ENOENT, "a directory is not a program");
-    check(spawn("/etc/motd", 0) == -ENOEXEC, "a text file is not a program");
-    check(spawn((const char *)KERNEL_ADDRESS, 0) == -EFAULT, "path in kernel memory");
-    check(spawn("args", (char *const *)UNMAPPED) == -EFAULT, "argv not mapped");
+    check(spawn("nope", 0, 0) == -ENOENT, "no such program");
+    check(spawn("/bin", 0, 0) == -ENOENT, "a directory is not a program");
+    check(spawn("/etc/motd", 0, 0) == -ENOEXEC, "a text file is not a program");
+    check(spawn((const char *)KERNEL_ADDRESS, 0, 0) == -EFAULT, "path in kernel memory");
+    check(spawn("args", (char *const *)UNMAPPED, 0) == -EFAULT, "argv not mapped");
     char *bad_string[] = { "args", (char *)KERNEL_ADDRESS, 0 };
-    check(spawn("args", bad_string) == -EFAULT, "argument in kernel memory");
+    check(spawn("args", bad_string, 0) == -EFAULT, "argument in kernel memory");
     char *empty[] = { 0 };
-    check(spawn("args", empty) == -EINVAL, "argv without argv[0]");
+    check(spawn("args", empty, 0) == -EINVAL, "argv without argv[0]");
 
     static char *many[34];
     for (int i = 0; i < 33; i++)
         many[i] = "x";
-    check(spawn("args", many) == -E2BIG, "33 arguments");
+    check(spawn("args", many, 0) == -E2BIG, "33 arguments");
     many[32] = 0;
     check(run("args", many, &how) == 32, "32 arguments");
 
@@ -62,7 +62,7 @@ static void check_spawn(void)
     for (int i = 0; i < 2099; i++)
         long_text[i] = 'a';
     char *too_long[] = { "args", long_text, 0 };
-    check(spawn("args", too_long) == -E2BIG, "2100 bytes of arguments");
+    check(spawn("args", too_long, 0) == -E2BIG, "2100 bytes of arguments");
 }
 
 static void check_wait(void)
@@ -72,8 +72,8 @@ static void check_wait(void)
 
     // Two children at once, waited for in the other order
     char *one[] = { "args", 0 };
-    long first = spawn("args", one);
-    long second = spawn("exitcode", 0);
+    long first = spawn("args", one, 0);
+    long second = spawn("exitcode", 0, 0);
     int code_first = 0, code_second = 0;
     check(first > 0 && second > 0 && first != second, "two children");
     check(wait((int)second, &code_second) == 0 && code_second == 42, "wait for the second child");
@@ -81,7 +81,7 @@ static void check_wait(void)
     check(wait((int)first, 0) == -ECHILD, "a child can be waited for only once");
 
     // A bad pointer is refused before the child is taken
-    long pid = spawn("exitcode", 0);
+    long pid = spawn("exitcode", 0, 0);
     check(wait((int)pid, (int *)KERNEL_ADDRESS) == -EFAULT, "exit code into kernel memory");
     check(wait((int)pid, (int *)main) == -EFAULT, "exit code into read-only code");
     check(wait((int)pid, 0) == 0, "the child is still there after refused waits");
@@ -113,7 +113,7 @@ int main(void)
     check_readdir();
 
     // Exit with a child nobody waits for
-    check(spawn("exitcode", 0) > 0, "spawn a child left behind");
+    check(spawn("exitcode", 0, 0) > 0, "spawn a child left behind");
 
     print(failures ? "spawner: FAILED\n" : "spawner: ok\n");
     return failures;

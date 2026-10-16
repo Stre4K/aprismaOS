@@ -345,7 +345,7 @@ static bool heap_out_of_memory(void)
     }
 
     const char *argv[] = { "heaptest", "oom" };
-    process_t *p = process_spawn_args("heaptest", 2, argv);
+    process_t *p = process_spawn_args("heaptest", 2, argv, NULL);
     bool killed = false;
     int code = p ? process_wait_info(p, &killed) : -1000;
 
@@ -380,12 +380,12 @@ static void test_user(void)
     memset(long_arg, 'a', sizeof(long_arg) - 1);
     const char *too_long[] = { "args", long_arg };
 
-    process_t *with_args = process_spawn_args("args", 4, three);
+    process_t *with_args = process_spawn_args("args", 4, three, NULL);
     int args_code = with_args ? process_wait(with_args) : -1;
-    process_t *max_args = process_spawn_args("args", PROCESS_MAX_ARGS, many);
+    process_t *max_args = process_spawn_args("args", PROCESS_MAX_ARGS, many, NULL);
     int max_code = max_args ? process_wait(max_args) : -1;
-    process_t *over = process_spawn_args("args", PROCESS_MAX_ARGS + 1, many);
-    process_t *over_bytes = process_spawn_args("args", 2, too_long);
+    process_t *over = process_spawn_args("args", PROCESS_MAX_ARGS + 1, many, NULL);
+    process_t *over_bytes = process_spawn_args("args", 2, too_long, NULL);
     if (args_code != 4 || max_code != PROCESS_MAX_ARGS || over || over_bytes) {
         printk("user test: arguments wrong (exit %d and %d, too many %s, too long %s)\n", args_code,
                max_code, over ? "accepted" : "refused", over_bytes ? "accepted" : "refused");

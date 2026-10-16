@@ -28,7 +28,8 @@ long close(int fd);
 long getpid(void);
 long sleep(unsigned ms);
 long yield(void);
-long spawn(const char *path, char *const argv[]);
+long spawn(const char *path, char *const argv[], const spawn_options_t *options);
+long pipe(int fds[2]);
 long wait(int pid, int *code);
 long readdir(const char *dir, size_t index, dirent_t *entry);
 long brk(void *end);           // new end of the heap, or -ENOMEM

@@ -1,7 +1,7 @@
 // files: open/read/close on the ramdisk, including every error case
 #include "ulib.h"
 
-#define MAX_FILES 16  // per process (the kernel's PROCESS_MAX_FILES)
+#define MAX_FILES 13  // free descriptors: the kernel's PROCESS_MAX_FDS (16) minus 0, 1 and 2
 
 static int same(const char *a, const char *b, long n)
 {

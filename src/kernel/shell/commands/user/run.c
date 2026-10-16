@@ -18,7 +18,7 @@ void cmd_run(int argc, char **argv) {
     }
 
     // The program gets "<program> [arguments...]" as its argv
-    process_t *p = process_spawn_args(argv[1], argc - 1, (const char *const *)&argv[1]);
+    process_t *p = process_spawn_args(argv[1], argc - 1, (const char *const *)&argv[1], NULL);
     if (p == NULL) {
         if (!fs_mounted())
             printk("run: no filesystem (boot with a ramdisk)\n");
