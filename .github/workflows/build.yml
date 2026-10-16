@@ -319,6 +319,7 @@ jobs:
             --run "ls /etc" "motd +[0-9]+ bytes" \
             --run "args one 'two three'" "argv\[2\]=two three" \
             --run "cat /etc/motd" "Welcome to AprismaOS!" \
+            --run "sort /etc/motd" "This file was read.*\nWelcome to AprismaOS!" \
             --run "nope" "sh: nope: command not found" \
             --run "exit 3" "/bin/sh exited with code 3" \
             --run "version" "AprismaOS v[^ ]+ \(x86_64\)"

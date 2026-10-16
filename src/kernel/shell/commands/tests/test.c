@@ -16,6 +16,9 @@
 #include <kernel/arch/timer.h>
 #include <kernel/sched.h>
 #include <kernel/proc.h>
+#ifdef CONFIG_USERMODE
+#include <kernel/arch/memlayout.h>
+#endif
 #include <string.h>
 #include <stdint.h>
 
@@ -327,6 +330,38 @@ static bool expect_killed(const char *name)
     return true;
 }
 
+// Run heaptest's out-of-memory check while the kernel holds all but a
+// few free pages (enough to start the program, not for 1 MiB of heap)
+static bool heap_out_of_memory(void)
+{
+    enum { LEAVE_FREE = 96 };
+    void *hoard = NULL;  // held pages, linked through their first word
+    while (pmm_free_pages() > LEAVE_FREE) {
+        void *page = pmm_alloc_page();
+        if (page == NULL)
+            break;
+        *(void **)P2V(page) = hoard;
+        hoard = page;
+    }
+
+    const char *argv[] = { "heaptest", "oom" };
+    process_t *p = process_spawn_args("heaptest", 2, argv);
+    bool killed = false;
+    int code = p ? process_wait_info(p, &killed) : -1000;
+
+    while (hoard) {
+        void *next = *(void **)P2V(hoard);
+        pmm_free_page(hoard);
+        hoard = next;
+    }
+
+    if (killed || code != 0) {
+        printk("user test: heaptest oom %s %d\n", killed ? "was killed, code" : "exited with", code);
+        return false;
+    }
+    return true;
+}
+
 static void test_user(void)
 {
     int errors = 0;
@@ -363,6 +398,10 @@ static void test_user(void)
 
     // Processes starting processes: spawn, wait and readdir from user mode
     errors += !expect_exit("spawner", 0);
+
+    // The heap: brk and malloc, and running out of memory
+    errors += !expect_exit("heaptest", 0);
+    errors += !heap_out_of_memory();
 
     // Faults in user mode end the process, not the kernel
     errors += !expect_killed("crash");
@@ -417,6 +456,8 @@ static void test_user(void)
         errors += !expect_exit("exitcode", 42);
     for (int i = 0; i < 3; i++)
         errors += !expect_exit("spawner", 0);  // also leaves a child behind each time
+    errors += !expect_exit("heaptest", 0);     // its heap pages must come back
+    errors += !heap_out_of_memory();           // and those of a brk that failed halfway
     thread_sleep(50);
 
     kheap_stats_t heap_after;
