@@ -353,6 +353,17 @@ static void test_user(void)
         errors++;
     }
 
+    // x87/SSE registers belong to each process: two copies fill them with
+    // different values and rounding modes while switching back and forth
+    process_t *f1 = process_spawn("fpu");
+    process_t *f2 = process_spawn("fpu");
+    int fpu1 = f1 ? process_wait(f1) : -1;
+    int fpu2 = f2 ? process_wait(f2) : -1;
+    if (fpu1 != 0 || fpu2 != 0) {
+        printk("user test: fpu state was not kept (%d, %d)\n", fpu1, fpu2);
+        errors++;
+    }
+
     // User code is preemptible: this thread keeps waking up while a
     // process busy-loops without making system calls
     process_t *spinner = process_spawn("spin");
