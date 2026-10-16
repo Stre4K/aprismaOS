@@ -34,6 +34,8 @@ typedef struct process {
     uintptr_t space;           // address space (0 once freed)
     uintptr_t entry;           // program entry point
     uintptr_t user_sp;         // initial user stack pointer
+    uintptr_t heap_start;      // the heap (brk) begins after the program image
+    uintptr_t brk;             // current end of the heap; pages up to it are mapped
     int exit_code;
     bool exited;
     bool killed;               // ended by a fault or Ctrl+C, not by exit()
@@ -88,8 +90,9 @@ __attribute__((noreturn)) void process_kill(const char *reason, regs_t *regs);
 void process_thread_reaped(process_t *p);
 
 // Load an ELF executable into a (not active) address space; returns the
-// entry point, or 0 if the image is invalid or memory runs out
-uintptr_t elf_load(uintptr_t space, const uint8_t *image, size_t size);
+// entry point, or 0 if the image is invalid or memory runs out. *image_end
+// receives the page-aligned end of the highest segment (where the heap starts).
+uintptr_t elf_load(uintptr_t space, const uint8_t *image, size_t size, uintptr_t *image_end);
 
 // Handle "int $0x80" from user mode
 void syscall_dispatch(regs_t *regs);

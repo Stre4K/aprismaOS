@@ -27,12 +27,13 @@ PROGRAMS := $(sort $(basename $(notdir $(wildcard $(SRC_DIR)/programs/*.c))))
 
 # Programs may use x87/SSE: the kernel saves those registers per process.
 # No errno in the runtime, so math builtins (e.g. sqrt) compile to plain
-# instructions instead of library calls.
-CFLAGS  := -O2 -g -std=gnu11 -ffreestanding -fno-pie -fno-math-errno \
+# instructions instead of library calls. The runtime's memset and memcpy
+# are loops that gcc must not turn back into calls to themselves.
+CFLAGS  := -O2 -g -std=gnu11 -ffreestanding -fno-pie -fno-math-errno -fno-tree-loop-distribute-patterns \
            -Wall -Wextra -Werror -I$(SRC_DIR)/lib -I$(ROOTDIR)/src/kernel/include
 LDFLAGS := -nostdlib -static -no-pie -z max-page-size=0x1000 -T $(SRC_DIR)/user.ld
 
-LIB_OBJS := $(OBJ_DIR)/lib/start.o $(OBJ_DIR)/lib/ulib.o
+LIB_OBJS := $(OBJ_DIR)/lib/start.o $(OBJ_DIR)/lib/ulib.o $(OBJ_DIR)/lib/malloc.o
 
 ELFS     := $(patsubst %,$(OBJ_DIR)/bin/%.elf,$(PROGRAMS))
 

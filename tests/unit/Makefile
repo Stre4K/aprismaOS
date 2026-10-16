@@ -15,12 +15,14 @@ CC      ?= gcc
 OBJCOPY ?= objcopy
 
 # Code under test: libc (without putchar, which capture.c provides, and the
-# busy-wait sleep) plus pure kernel helpers
+# busy-wait sleep), pure kernel helpers and the user-space allocator
 LIBC_DIR    := $(ROOTDIR)/src/libc
 LIBC_SRCS   := $(filter-out $(LIBC_DIR)/stdio/putchar.c $(LIBC_DIR)/time/sleep.c, \
                  $(shell find $(LIBC_DIR) -name '*.c'))
 KERNEL_SRCS := $(ROOTDIR)/src/kernel/core/bitmap.c $(ROOTDIR)/src/kernel/fs/tar.c
-UUT_SRCS    := $(LIBC_SRCS) $(KERNEL_SRCS)
+# The user programs' allocator (its sbrk, print and exit come from test_malloc.c)
+USER_SRCS   := $(ROOTDIR)/src/user/lib/malloc.c
+UUT_SRCS    := $(LIBC_SRCS) $(KERNEL_SRCS) $(USER_SRCS)
 UUT_OBJS    := $(patsubst $(ROOTDIR)/%.c,$(BUILD_DIR)/uut/%.o,$(UUT_SRCS))
 
 # -fno-tree-loop-distribute-patterns keeps gcc from turning loops inside

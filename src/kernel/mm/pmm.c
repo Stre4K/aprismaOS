@@ -31,6 +31,8 @@ static uint8_t bitmap[MAX_PAGES / 8];
 static uint8_t usable[MAX_PAGES / 8];
 
 static uint32_t total_pages;
+static uint32_t free_count;   // pages free right now
+static uint32_t search_from;  // no free page below this index
 
 // Physical end of the kernel image (from the linker script)
 extern char kernel_end_phys[];
@@ -173,19 +175,27 @@ void pmm_init(multiboot_info_t *mbi) {
 
         addr += entry->size + sizeof(entry->size);
     }
+
+    free_count = total_pages;  // nothing is allocated yet
+    search_from = 0;
 }
 
 // Allocation and freeing disable interrupts: pages are also freed from
 // interrupt context (e.g. stacks of exited threads)
+// The lowest free page is handed out; the search starts where the last one
+// ended, so allocating many pages in a row does not rescan the used ones.
 void *pmm_alloc_page() {
     unsigned long flags = irq_save();
-    for (uint32_t i = 0; i < MAX_PAGES; i++) {
+    for (uint32_t i = search_from; free_count > 0 && i < MAX_PAGES; i++) {
         if (!test_bit(bitmap, i)) {
             set_bit(bitmap, i);
+            free_count--;
+            search_from = i + 1;
             irq_restore(flags);
             return (void *)(uintptr_t)(i * PAGE_SIZE);
         }
     }
+    search_from = MAX_PAGES;
     irq_restore(flags);
     return NULL;
 }
@@ -207,6 +217,9 @@ void pmm_free_page(void *page) {
         panic("pmm_free_page: double free");
 
     clear_bit(bitmap, index);
+    free_count++;
+    if (index < search_from)
+        search_from = (uint32_t)index;
     irq_restore(flags);
 }
 
@@ -216,10 +229,5 @@ uint32_t pmm_total_pages() {
 }
 
 uint32_t pmm_free_pages() {
-    uint32_t count = 0;
-    for (uint32_t i = 0; i < MAX_PAGES; i++) {
-        if (!test_bit(bitmap, i))
-            count++;
-    }
-    return count;
+    return free_count;
 }

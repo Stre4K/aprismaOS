@@ -350,6 +350,17 @@ def user_shell_program_reads_the_keyboard(vm):
 
 
 @user_shell
+def sort_keeps_typed_lines_on_the_heap(vm):
+    vm.qmp.type("sort\n")
+    vm.settle()
+    for word in ("pear", "apple", "fig", "banana"):
+        vm.qmp.type(word + "\n")
+    vm.settle()
+    vm.qmp.tap("ctrl", "d")
+    vm.wait(r"(?m)^banana\napple\nbanana\nfig\npear\n\$$")  # the last typed line, then sorted
+
+
+@user_shell
 def ctrl_c_at_the_user_shell_prompt_gives_a_new_prompt(vm):
     vm.qmp.type("echo bad")
     vm.qmp.tap("ctrl", "c")
@@ -419,6 +430,7 @@ SCENARIOS = [
     cat_without_arguments_copies_keyboard_input,
     user_shell_runs_programs_with_arguments,
     user_shell_program_reads_the_keyboard,
+    sort_keeps_typed_lines_on_the_heap,
     ctrl_c_at_the_user_shell_prompt_gives_a_new_prompt,
     ctrl_c_ends_the_program_not_the_user_shell,
     ctrl_c_in_a_nested_shell_ends_only_its_program,
