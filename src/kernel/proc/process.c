@@ -192,7 +192,12 @@ process_t *process_spawn_args(const char *name, int argc, const char *const argv
     if (p->space == 0)
         goto fail;
 
-    p->entry = elf_load(p->space, program->data, program->size, &p->heap_start);
+    // Load under the filesystem lock: a program in /tmp could otherwise be
+    // removed or rewritten while it is being copied
+    fs_lock();
+    program = process_find_program(name);
+    p->entry = program ? elf_load(p->space, program->data, program->size, &p->heap_start) : 0;
+    fs_unlock();
     p->brk = p->heap_start;
     uintptr_t stack_pages[USER_STACK_PAGES];
     if (p->entry == 0 || !map_user_stack(p, stack_pages))

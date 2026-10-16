@@ -43,12 +43,13 @@ void cmd_run(int argc, char **argv) {
 void cmd_programs(int argc, char **argv) {
     (void)argc;
     (void)argv;
-    const fs_node_t *node;
-    const char *name;
-    for (size_t i = 0; (node = fs_list("/bin", i, &name)) != NULL; i++) {
+    fs_lock();
+    fs_node_t *bin = fs_lookup("/bin"), *node;
+    for (size_t i = 0; bin && (node = fs_child(bin, i)) != NULL; i++) {
         if (!node->is_dir)
-            printk("%-12s %u bytes\n", name, (unsigned)node->size);
+            printk("%-12s %u bytes\n", node->name, (unsigned)node->size);
     }
+    fs_unlock();
 }
 
 SHELL_CMD("user", "run", "Run a user program", cmd_run);

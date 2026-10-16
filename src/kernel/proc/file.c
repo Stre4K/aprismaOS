@@ -47,12 +47,19 @@ static file_t *file_new(file_type_t type)
     return f;
 }
 
-file_t *file_open_node(const fs_node_t *node)
+int file_open_path(const char *path, int flags, file_t **out)
 {
-    file_t *f = file_new(FILE_RAMDISK);
-    if (f)
-        f->node = node;
-    return f;
+    file_t *f = file_new(FILE_NODE);
+    if (f == NULL)
+        return -ENOMEM;
+    int r = fs_open(path, flags, &f->node);
+    if (r < 0) {
+        kfree(f);
+        return r;
+    }
+    f->flags = flags;
+    *out = f;
+    return 0;
 }
 
 bool file_pipe(file_t **read_end, file_t **write_end)
@@ -97,6 +104,8 @@ void file_put(file_t *f)
 
     if (!last)
         return;
+    if (f->node)
+        fs_close(f->node);
     if (pipe && !free_pipe)
         wait_queue_wake_all(&pipe->wait);  // the other side sees the end (or -EPIPE)
     if (free_pipe)
@@ -187,13 +196,13 @@ long file_read(file_t *f, void *buf, size_t len)
                 memcpy(buf, line, (size_t)n);
             return n;
         }
-        case FILE_RAMDISK: {
-            size_t left = f->node->size - f->offset;
-            if (len > left)
-                len = left;
-            memcpy(buf, f->node->data + f->offset, len);
-            f->offset += len;
-            return (long)len;  // 0 at the end of the file
+        case FILE_NODE: {
+            if ((f->flags & O_ACCMODE) == O_WRONLY)
+                return -EBADF;
+            long n = fs_read(f->node, f->offset, buf, len);
+            if (n > 0)
+                f->offset += (size_t)n;
+            return n;  // 0 at the end of the file
         }
         case FILE_PIPE_READ:
             return pipe_read(f->pipe, buf, len);
@@ -210,8 +219,35 @@ long file_write(file_t *f, const void *buf, size_t len)
             return (long)len;
         case FILE_PIPE_WRITE:
             return pipe_write(f->pipe, buf, len);
+        case FILE_NODE: {
+            if ((f->flags & O_ACCMODE) == O_RDONLY)
+                return -EBADF;
+            long n = fs_write(f->node, f->flags & O_APPEND ? FS_APPEND : f->offset, buf, len);
+            if (n > 0)
+                f->offset = f->flags & O_APPEND ? f->node->size : f->offset + (size_t)n;
+            return n;
+        }
         default:
-            return -EBADF;  // the ramdisk is read-only
+            return -EBADF;
+    }
+}
+
+void file_stat(file_t *f, stat_t *st)
+{
+    st->size = 0;
+    st->writable = 0;
+    switch (f->type) {
+        case FILE_CONSOLE:
+            st->type = STAT_CONSOLE;
+            break;
+        case FILE_NODE:
+            st->type = f->node->is_dir ? STAT_DIR : STAT_FILE;
+            st->size = f->node->size;
+            st->writable = f->node->writable;
+            break;
+        default:
+            st->type = STAT_PIPE;
+            break;
     }
 }
 
