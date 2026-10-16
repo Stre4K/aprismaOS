@@ -305,20 +305,18 @@ static int64_t sys_wait(uint64_t pid, uint64_t user_code)
     if (child == NULL)
         return -ECHILD;
 
-    // Ctrl+C goes to the child while we wait, if we had the console (or
-    // nobody did)
-    process_t *previous = console_get_foreground();
-    bool hand_over = previous == NULL || previous == self;
+    // Ctrl+C goes to the child's process group while we wait, if ours had
+    // the console (or nobody did)
+    int previous = console_get_foreground();
+    bool hand_over = previous == 0 || previous == self->pgid;
     if (hand_over)
-        console_set_foreground(child);
+        console_set_foreground(child->pgid);
 
     bool killed;
     int code = process_wait_info(child, &killed);  // releases the child
 
     if (hand_over)
         console_set_foreground(previous);
-    if (previous)
-        process_release(previous);
 
     if (user_code)
         *(int *)(uintptr_t)user_code = code;  // checked above

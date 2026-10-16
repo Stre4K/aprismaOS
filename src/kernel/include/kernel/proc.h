@@ -10,6 +10,7 @@
 
 #include <kernel/arch/isr.h>
 #include <kernel/fs.h>
+#include <kernel/sched.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -40,11 +41,14 @@ typedef struct process {
     bool exited;
     bool killed;               // ended by a fault or Ctrl+C, not by exit()
     volatile bool kill_pending; // Ctrl+C: kill when it next returns to user mode
+    int pgid;                  // process group: Ctrl+C ends the foreground group
+    wait_queue_t *sleeping_on; // where process_sleep_on() blocked it, or NULL
     struct thread *waiter;     // thread blocked in process_wait()
     int refs;                  // its thread + the creator; freed at 0
     open_file_t files[PROCESS_MAX_FILES];  // file descriptor PROCESS_FIRST_FD + index
     struct process *children;  // started with the spawn system call, not yet waited for
     struct process *next_sibling;
+    struct process *all_next;  // list of processes that have not exited
 } process_t;
 
 // Start a program from the filesystem in a new process: `name` is looked
@@ -76,6 +80,15 @@ process_t *process_take_child(process_t *parent, int pid);  // NULL if not a chi
 
 // Called before returning to user mode: ends the process if Ctrl+C asked to
 void process_check_kill(regs_t *regs);
+
+// Ctrl+C: every process in the group is killed when it next returns to
+// user mode; one waiting in process_sleep_on() is woken for that
+void process_interrupt_group(int pgid);
+
+// Block on `q` like wait_queue_sleep() (interrupts disabled), but let
+// process_interrupt_group() wake the process. The caller re-checks
+// kill_pending afterwards. Kernel threads just sleep.
+void process_sleep_on(wait_queue_t *q);
 
 // The process the current thread runs, or NULL for kernel threads
 process_t *process_current(void);
