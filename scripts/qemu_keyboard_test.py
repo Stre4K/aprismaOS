@@ -328,6 +328,71 @@ def cat_without_arguments_copies_keyboard_input(vm):
     vm.wait(r"\[\d+ cat\] exited with code 0")
 
 
+# ------------------------------------------------- the user-space shell
+
+@user_shell
+def user_shell_runs_programs_with_arguments(vm):
+    vm.qmp.type("echo 'two  spaces' \"and quotes\"\n")
+    vm.wait(r"(?m)^two  spaces and quotes$")
+    vm.qmp.type("nope\n")
+    vm.wait(r"sh: nope: command not found")
+    vm.qmp.type("cat /nope\n")
+    vm.wait(r"sh: cat exited with code 1")
+    expect(re.search(r"(?m)^\$$", vm.screen()), "a new prompt after each command", vm)
+
+
+@user_shell
+def user_shell_program_reads_the_keyboard(vm):
+    vm.qmp.type("greet\n")
+    vm.wait(r"What's your name\?")
+    vm.qmp.type("Ada\n")
+    vm.wait(r"(?m)^Hello, Ada!\n\$$")
+
+
+@user_shell
+def ctrl_c_at_the_user_shell_prompt_gives_a_new_prompt(vm):
+    vm.qmp.type("echo bad")
+    vm.qmp.tap("ctrl", "c")
+    vm.wait(r"(?m)^\$ echo bad\^C\n\$$")
+    vm.qmp.type("echo good\n")
+    vm.wait(r"(?m)^good$")
+    expect(not re.search(r"(?m)^bad", vm.screen()), "the cancelled line must not run", vm)
+
+
+@user_shell
+def ctrl_c_ends_the_program_not_the_user_shell(vm):
+    vm.qmp.type("forever\n")
+    vm.settle()
+    vm.qmp.tap("ctrl", "c")
+    vm.wait(r"\[\d+ forever\] killed: interrupted \(Ctrl\+C\)")
+    vm.qmp.type("echo alive\n")
+    vm.wait(r"(?m)^alive$")
+    expect("/bin/sh exited" not in vm.screen(), "the shell must survive Ctrl+C", vm)
+
+
+@user_shell
+def ctrl_c_in_a_nested_shell_ends_only_its_program(vm):
+    vm.qmp.type("sh\n")
+    vm.settle()
+    vm.qmp.type("forever\n")
+    vm.settle()
+    vm.qmp.tap("ctrl", "c")
+    vm.wait(r"\[\d+ forever\] killed")
+    vm.qmp.type("exit 4\n")
+    vm.wait(r"sh: sh exited with code 4")  # the inner shell was still running
+    vm.qmp.type("echo outer\n")
+    vm.wait(r"(?m)^outer$")
+
+
+@user_shell
+def ctrl_d_leaves_the_user_shell_for_the_kernel_shell(vm):
+    vm.qmp.tap("ctrl", "d")
+    vm.wait(r"\[SHELL\] /bin/sh exited with code 0")
+    vm.wait(KERNEL_SHELL)
+    vm.qmp.type("version\n")
+    vm.wait(r"AprismaOS v")
+
+
 def ctrl_d_at_the_shell_prompt_is_harmless(vm):
     vm.qmp.tap("ctrl", "d")
     vm.qmp.type("echo still here\n")
@@ -352,6 +417,12 @@ SCENARIOS = [
     ctrl_c_kills_a_program_waiting_for_input,
     input_typed_ahead_reaches_the_program,
     cat_without_arguments_copies_keyboard_input,
+    user_shell_runs_programs_with_arguments,
+    user_shell_program_reads_the_keyboard,
+    ctrl_c_at_the_user_shell_prompt_gives_a_new_prompt,
+    ctrl_c_ends_the_program_not_the_user_shell,
+    ctrl_c_in_a_nested_shell_ends_only_its_program,
+    ctrl_d_leaves_the_user_shell_for_the_kernel_shell,
 ]
 
 

@@ -361,6 +361,9 @@ static void test_user(void)
             process_wait(over_bytes);
     }
 
+    // Processes starting processes: spawn, wait and readdir from user mode
+    errors += !expect_exit("spawner", 0);
+
     // Faults in user mode end the process, not the kernel
     errors += !expect_killed("crash");
     errors += !expect_killed("privileged");
@@ -412,6 +415,8 @@ static void test_user(void)
 
     for (int i = 0; i < 20; i++)
         errors += !expect_exit("exitcode", 42);
+    for (int i = 0; i < 3; i++)
+        errors += !expect_exit("spawner", 0);  // also leaves a child behind each time
     thread_sleep(50);
 
     kheap_stats_t heap_after;

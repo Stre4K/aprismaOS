@@ -310,6 +310,19 @@ jobs:
             --run "test scroll" "scroll line 1499\nscroll test done" \
             --run "version" "AprismaOS v[^ ]+ \(${{ matrix.arch == 'x86_64' && 'x86_64' || 'i686' }}\)"
 
+      # With the ramdisk, x86_64 boots into the user-space shell /bin/sh
+      - name: User shell test ${{ matrix.artifact }}
+        if: ${{ !matrix.is_iso && matrix.arch == 'x86_64' }}
+        run: |
+          python3 scripts/qemu_boot_test.py --arch x86_64 \
+            --kernel ${{ matrix.artifact }}/aprisma.kernel --timeout 120 --check-serial --shell user \
+            --run "ls /etc" "motd +[0-9]+ bytes" \
+            --run "args one 'two three'" "argv\[2\]=two three" \
+            --run "cat /etc/motd" "Welcome to AprismaOS!" \
+            --run "nope" "sh: nope: command not found" \
+            --run "exit 3" "/bin/sh exited with code 3" \
+            --run "version" "AprismaOS v[^ ]+ \(x86_64\)"
+
       # Keyboard and command-line behaviour (key presses sent through QMP)
       - name: Keyboard test ${{ matrix.artifact }}
         if: ${{ !matrix.is_iso }}
