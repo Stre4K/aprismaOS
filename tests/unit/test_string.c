@@ -99,3 +99,26 @@ TEST(strerror_names_errors)
     CHECK_STR_EQ(aprisma_strerror(2), "ENOENT");
     CHECK_STR_EQ(aprisma_strerror(-12345), "Unknown error");
 }
+
+TEST(strncmp_compares_at_most_n)
+{
+    CHECK_INT_EQ(aprisma_strncmp("abcX", "abcY", 3), 0);
+    CHECK(aprisma_strncmp("abcX", "abcY", 4) < 0);
+    CHECK(aprisma_strncmp("ab", "abc", 5) < 0);   // stops at the shorter string
+    CHECK_INT_EQ(aprisma_strncmp("same", "same", 100), 0);
+    CHECK_INT_EQ(aprisma_strncmp("x", "y", 0), 0);
+    CHECK(aprisma_strncmp("\x80", "\x01", 1) > 0);  // as unsigned char
+}
+
+TEST(strchr_and_strrchr_find_characters)
+{
+    const char *s = "/bin/hello";
+    CHECK(aprisma_strchr(s, '/') == s);
+    CHECK(aprisma_strrchr(s, '/') == s + 4);
+    CHECK(aprisma_strchr(s, 'l') == s + 7);
+    CHECK(aprisma_strrchr(s, 'l') == s + 8);
+    CHECK(aprisma_strchr(s, 'z') == NULL);
+    CHECK(aprisma_strrchr(s, 'z') == NULL);
+    CHECK(aprisma_strchr(s, '\0') == s + 10);  // the terminator can be found
+    CHECK(aprisma_strrchr(s, '\0') == s + 10);
+}

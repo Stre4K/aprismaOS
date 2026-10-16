@@ -24,7 +24,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kernel-amd64
-          path: build/AprismaOS/sysroot/boot/aprisma.kernel
+          path: |
+            build/AprismaOS/sysroot/boot/aprisma.kernel
+            build/AprismaOS/sysroot/boot/initrd.tar
 
       - name: Upload ISO artifact (amd64)
         uses: actions/upload-artifact@v4
@@ -57,7 +59,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kernel-x86_64
-          path: build/AprismaOS/sysroot/boot/aprisma.kernel
+          path: |
+            build/AprismaOS/sysroot/boot/aprisma.kernel
+            build/AprismaOS/sysroot/boot/initrd.tar
 
       - name: Upload ISO artifact (x86_64)
         uses: actions/upload-artifact@v4
@@ -82,7 +86,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kernel-arm64
-          path: build/AprismaOS/sysroot/boot/aprisma.kernel
+          path: |
+            build/AprismaOS/sysroot/boot/aprisma.kernel
+            build/AprismaOS/sysroot/boot/initrd.tar
 
   # 3. macOS build (native + ISO)
   build-macos:
@@ -101,7 +107,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kernel-macos
-          path: build/AprismaOS/sysroot/boot/aprisma.kernel
+          path: |
+            build/AprismaOS/sysroot/boot/aprisma.kernel
+            build/AprismaOS/sysroot/boot/initrd.tar
 
       - name: Upload ISO artifact (macOS)
         uses: actions/upload-artifact@v4
@@ -147,7 +155,7 @@ jobs:
           docker pull --platform linux/amd64 stre4k/aprisma:grub-22.04
           docker run --platform linux/amd64 --rm -v $PWD:/workspace -w /workspace \
             stre4k/aprisma:grub-22.04 \
-            sh -c 'mkdir -p build/isodir/boot/grub && cp build/AprismaOS/sysroot/boot/aprisma.kernel build/isodir/boot/aprisma.kernel && printf "menuentry \"Aprisma\" {\n  multiboot /boot/aprisma.kernel\n}\n" > build/isodir/boot/grub/grub.cfg && grub-mkrescue -o build/aprisma.iso build/isodir'
+            sh -c 'mkdir -p build/isodir/boot/grub && cp build/AprismaOS/sysroot/boot/aprisma.kernel build/AprismaOS/sysroot/boot/initrd.tar build/isodir/boot/ && printf "menuentry \"Aprisma\" {\n  multiboot /boot/aprisma.kernel\n  module /boot/initrd.tar\n}\n" > build/isodir/boot/grub/grub.cfg && grub-mkrescue -o build/aprisma.iso build/isodir'
 
       # Upload the resulting ISO
       - name: Upload ISO artifact (arm64 GRUB)
@@ -294,6 +302,7 @@ jobs:
             set -- --run "run hello" "Hello from user mode!" --run "test user" "user test: [0-9]+ wakeups during spin, passed"
           fi
           python3 scripts/qemu_boot_test.py --arch ${{ matrix.arch }} $IMAGE --timeout 120 --check-serial "$@" \
+            --run "cat /etc/motd" "Welcome to AprismaOS!" \
             --run "test threads" "threads test: [0-9]+ spinner loops while preempted, passed" \
             --run "test heap" "heap test: peak heap [0-9]+ KB, passed" \
             --run "test timer" "timer test: [0-9]+ ticks during the command, passed" \
@@ -306,6 +315,14 @@ jobs:
         run: |
           python3 scripts/qemu_keyboard_test.py --arch ${{ matrix.arch }} \
             --kernel ${{ matrix.artifact }}/aprisma.kernel --timeout 60
+
+      # Booting without a ramdisk must work (the filesystem is optional)
+      - name: Boot test without ramdisk ${{ matrix.artifact }}
+        if: ${{ !matrix.is_iso }}
+        run: |
+          python3 scripts/qemu_boot_test.py --arch ${{ matrix.arch }} \
+            --kernel ${{ matrix.artifact }}/aprisma.kernel --timeout 120 --no-initrd \
+            --run "ls" "no filesystem" --run "echo still works" "(?m)^still works$"
 
       # The serial console must not hang a machine that has no serial port
       - name: Boot test without serial port ${{ matrix.artifact }}

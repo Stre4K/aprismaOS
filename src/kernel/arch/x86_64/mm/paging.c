@@ -178,6 +178,15 @@ uintptr_t virt_to_phys(uintptr_t virt)
     return (entry & PTE_ADDR_MASK) | (virt & (PAGE_SIZE - 1));
 }
 
+// Physical memory below PHYS_MAP_SIZE is always reachable through the
+// direct map
+void *paging_map_physical(uintptr_t phys, size_t size)
+{
+    if (phys + size < phys || phys + size > PHYS_MAP_SIZE)
+        return NULL;
+    return P2V(phys);
+}
+
 #ifdef CONFIG_USERMODE
 /* ---- per-process address spaces ---- */
 

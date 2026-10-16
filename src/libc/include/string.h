@@ -21,6 +21,9 @@ char *strerror(int errnum);
 char *strcpy(char *__restrict dest, const char *__restrict src);
 char *strncpy(char *__restrict dest, const char *__restrict src, size_t n);
 int strcmp(const char *s1, const char *s2);
+int strncmp(const char *s1, const char *s2, size_t n);
+char *strchr(const char *s, int c);
+char *strrchr(const char *s, int c);
 void strrev(char *str);
 
 #ifdef __cplusplus

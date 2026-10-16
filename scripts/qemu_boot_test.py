@@ -90,6 +90,16 @@ def read_screen(monitor, dump_path):
     return "\n".join(lines)
 
 
+def find_initrd(kernel, explicit, disabled):
+    """The ramdisk for a -kernel boot: --initrd, or initrd.tar next to the kernel."""
+    if disabled:
+        return None
+    if explicit:
+        return os.path.abspath(explicit)
+    candidate = os.path.join(os.path.dirname(os.path.abspath(kernel)), "initrd.tar")
+    return candidate if os.path.exists(candidate) else None
+
+
 def read_serial_log(path):
     """The kernel's serial output so far, with \\r\\n turned into \\n."""
     try:
@@ -152,6 +162,8 @@ def main():
     parser.add_argument("--timeout", type=float, default=60, help="seconds allowed for each step")
     parser.add_argument("--boot-done", default=BOOT_DONE, metavar="REGEX",
                         help="screen text that marks the end of the boot (default: keyboard initialized)")
+    parser.add_argument("--initrd", help="ramdisk to load with --kernel (default: initrd.tar next to the kernel)")
+    parser.add_argument("--no-initrd", action="store_true", help="boot --kernel without a ramdisk")
     parser.add_argument("--no-serial", action="store_true",
                         help="boot without a serial port (-serial none)")
     parser.add_argument("--check-serial", action="store_true",
@@ -180,6 +192,9 @@ def main():
                 kernel = os.path.join(tmp, "aprisma32.kernel")
                 subprocess.run([args.objcopy, "-O", "elf32-i386", os.path.abspath(args.kernel), kernel], check=True)
             boot_args = ["-kernel", kernel]
+            initrd = find_initrd(args.kernel, args.initrd, args.no_initrd)
+            if initrd:
+                boot_args += ["-initrd", initrd]
         else:
             boot_args = ["-cdrom", os.path.abspath(args.iso), "-boot", "d"]
 

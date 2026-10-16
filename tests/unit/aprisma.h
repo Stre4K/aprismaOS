@@ -19,6 +19,9 @@ void *aprisma_memset(void *dst, int value, size_t n);
 int aprisma_memcmp(const void *a, const void *b, size_t n);
 size_t aprisma_strlen(const char *s);
 int aprisma_strcmp(const char *a, const char *b);
+int aprisma_strncmp(const char *a, const char *b, size_t n);
+char *aprisma_strchr(const char *s, int c);
+char *aprisma_strrchr(const char *s, int c);
 char *aprisma_strcpy(char *dst, const char *src);
 char *aprisma_strncpy(char *dst, const char *src, size_t n);
 char *aprisma_strerror(int errnum);
@@ -59,6 +62,11 @@ double aprisma_ldexp(double x, int exponent);
 void aprisma_set_bit(uint8_t *bitmap, uint32_t bit);
 void aprisma_clear_bit(uint8_t *bitmap, uint32_t bit);
 int aprisma_test_bit(uint8_t *bitmap, uint32_t bit);
+
+/* kernel/fs/tar.c (types from <kernel/fs.h>) */
+#include <kernel/fs.h>
+int aprisma_tar_parse(const uint8_t *archive, size_t size,
+                      bool (*entry)(const tar_entry_t *e, void *ctx), void *ctx);
 
 /* Output written through aprisma_putchar (see capture.c) */
 void capture_reset(void);
