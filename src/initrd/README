@@ -1,3 +1,4 @@
 This is the AprismaOS ramdisk: a read-only filesystem the bootloader loads
-next to the kernel. Programs live in /bin; run one with "run <name>".
+next to the kernel. Programs live in /bin: type a name at the $ prompt, or
+use "run <name>" in the kernel shell.
 Everything in src/initrd/ of the source tree ends up here.
