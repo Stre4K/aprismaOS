@@ -102,6 +102,20 @@ void process_release(process_t *p)
         kfree(p);
 }
 
+void process_get(process_t *p)
+{
+    unsigned long flags = irq_save();
+    p->refs++;
+    irq_restore(flags);
+}
+
+void process_check_kill(regs_t *regs)
+{
+    process_t *p = process_current();
+    if (p && p->kill_pending)
+        process_kill("interrupted (Ctrl+C)", regs);
+}
+
 int process_wait_info(process_t *p, bool *killed)
 {
     unsigned long flags = irq_save();

@@ -47,8 +47,8 @@ void keyboard_init(void);
 // True if scancodes are waiting to be processed
 bool keyboard_has_input(void);
 
-// Decode buffered scancodes and feed them to the shell. Call from the main
-// loop, not from an interrupt handler: it can run whole shell commands.
+// Decode buffered scancodes and feed them to the line editor. Called by the
+// console thread, not from an interrupt handler.
 void keyboard_process(void);
 
 // Wait until scancodes are buffered: blocks the calling thread with the

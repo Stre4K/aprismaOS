@@ -15,12 +15,14 @@
 #include <kernel/mm/paging.h>
 #include <kernel/printk.h>
 #include <kernel/sched.h>
+#include <kernel/console.h>
+#include <string.h>
 
 #define PAGE_SIZE 4096
 #define WRITE_MAX (64 * 1024)  // longest single write
 
-// True if user mode may read [addr, addr + len)
-static bool user_buffer_ok(uint64_t addr, uint64_t len)
+// True if user mode may read (or write) [addr, addr + len)
+static bool user_buffer_ok(uint64_t addr, uint64_t len, bool write)
 {
     if (len == 0)
         return true;
@@ -28,7 +30,7 @@ static bool user_buffer_ok(uint64_t addr, uint64_t len)
         return false;  // wraps around
 
     for (uint64_t page = addr & ~(uint64_t)(PAGE_SIZE - 1); page < addr + len; page += PAGE_SIZE) {
-        if (!paging_user_access_ok(page, false))
+        if (!paging_user_access_ok(page, write))
             return false;
     }
     return true;
@@ -40,11 +42,27 @@ static int64_t sys_write(uint64_t fd, uint64_t buf, uint64_t len)
         return -EBADF;  // only stdout and stderr (the console) so far
     if (len > WRITE_MAX)
         len = WRITE_MAX;
-    if (!user_buffer_ok(buf, len))
+    if (!user_buffer_ok(buf, len, false))
         return -EFAULT;
 
     printk("%.*s", (int)len, (const char *)(uintptr_t)buf);
     return (int64_t)len;
+}
+
+static int64_t sys_read(uint64_t fd, uint64_t buf, uint64_t len)
+{
+    if (fd != 0)
+        return -EBADF;  // only stdin (the console) so far
+    if (len > CONSOLE_LINE_MAX)
+        len = CONSOLE_LINE_MAX;
+    if (!user_buffer_ok(buf, len, true))
+        return -EFAULT;
+
+    char line[CONSOLE_LINE_MAX];
+    long n = console_read(line, len);
+    if (n > 0)
+        memcpy((void *)(uintptr_t)buf, line, (size_t)n);  // checked above
+    return n;
 }
 
 void syscall_dispatch(regs_t *regs)
@@ -59,6 +77,9 @@ void syscall_dispatch(regs_t *regs)
             process_exit((int)SYSCALL_ARG0(regs));
         case SYS_WRITE:
             result = sys_write(SYSCALL_ARG0(regs), SYSCALL_ARG1(regs), SYSCALL_ARG2(regs));
+            break;
+        case SYS_READ:
+            result = sys_read(SYSCALL_ARG0(regs), SYSCALL_ARG1(regs), SYSCALL_ARG2(regs));
             break;
         case SYS_GETPID:
             result = process_current()->pid;

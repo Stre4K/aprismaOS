@@ -25,7 +25,8 @@ typedef struct process {
     uintptr_t user_sp;         // initial user stack pointer
     int exit_code;
     bool exited;
-    bool killed;               // ended by a fault, not by exit()
+    bool killed;               // ended by a fault or Ctrl+C, not by exit()
+    volatile bool kill_pending; // Ctrl+C: kill when it next returns to user mode
     struct thread *waiter;     // thread blocked in process_wait()
     int refs;                  // its thread + the creator; freed at 0
 } process_t;
@@ -51,6 +52,10 @@ process_t *process_spawn(const char *name);
 int process_wait(process_t *p);
 int process_wait_info(process_t *p, bool *killed);
 void process_release(process_t *p);
+void process_get(process_t *p);  // take another reference
+
+// Called before returning to user mode: ends the process if Ctrl+C asked to
+void process_check_kill(regs_t *regs);
 
 // The process the current thread runs, or NULL for kernel threads
 process_t *process_current(void);

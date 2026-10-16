@@ -6,6 +6,7 @@
 #include <kernel/printk.h>
 #include <kernel/drivers/tty.h>
 #include <kernel/shell/cmdline.h>
+#include <kernel/console.h>
 #include <kernel/sched.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -45,17 +46,22 @@ static void handle_char(char c) {
 
 static void handle_ctrl_key(uint8_t scancode) {
     switch (scancode) {
-        case 0x2E: // Ctrl+C: abandon the current line
+        case 0x2E: // Ctrl+C: abandon the line and interrupt the running program
             if (edit_mode) {
                 printk("^C\n");
             } else {
                 cmdline_cancel();
+                console_interrupt();
             }
+            break;
+        case 0x20: // Ctrl+D on an empty line: end of input for the reader
+            if (!edit_mode && cmdline_is_empty())
+                console_eof();
             break;
         case 0x26: // Ctrl+L: clear the screen, keep what is being typed
             terminal_clear_screen();
             if (!edit_mode) {
-                cmdline_redraw();
+                cmdline_screen_cleared();
             }
             break;
         case 0x12: // Ctrl+E: toggle edit mode
@@ -254,11 +260,6 @@ void keyboard_process(void) {
         preempt_disable();
         keyboard_handle_scancode(sc);
         preempt_enable();
-
-        // A finished line runs outside that section, so commands can be
-        // preempted and can sleep
-        if (cmdline_line_ready())
-            cmdline_run();
     }
 }
 

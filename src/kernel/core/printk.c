@@ -33,6 +33,7 @@ void printk(const char *fmt, ...) {
 
     terminal_set_defer_render(false);
     terminal_render(); // render all output at once
+    tty_sync_cursor();  // the cursor follows the output (e.g. after a prompt)
     preempt_enable();
     va_end(args);
 }

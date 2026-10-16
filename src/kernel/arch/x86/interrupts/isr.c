@@ -72,6 +72,7 @@ void isr_common_handler(void* regs) {
     /* System calls */
     if (int_no == SYSCALL_VECTOR) {
         syscall_dispatch(r);
+        process_check_kill(r);  // Ctrl+C takes effect before returning to user mode
         return;
     }
 
@@ -112,6 +113,10 @@ void isr_common_handler(void* regs) {
 #ifdef CONFIG_SCHED
         // The interrupt is acknowledged; switch threads here if one is due
         sched_irq_exit();
+#endif
+#ifdef CONFIG_USERMODE
+        if (REGS_FROM_USER(r))
+            process_check_kill(r);  // stops even a busy loop without system calls
 #endif
         return;
     }

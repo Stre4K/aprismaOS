@@ -31,6 +31,8 @@ void terminal_scroll_to_top(void);
 void terminal_newline(void);
 
 void terminal_set_defer_render(bool defer);
+// Move the hardware cursor to the output position (if the newest output is shown)
+void tty_sync_cursor(void);
 
 void vga_enable_cursor(void);
 void vga_disable_cursor(void);

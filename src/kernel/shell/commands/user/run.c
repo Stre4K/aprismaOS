@@ -8,6 +8,7 @@
 
 #include <kernel/shell/commands.h>
 #include <kernel/printk.h>
+#include <kernel/console.h>
 
 void cmd_run(int argc, char **argv) {
     if (argc < 2) {
@@ -26,7 +27,9 @@ void cmd_run(int argc, char **argv) {
 
     int pid = p->pid;
     bool killed;
+    console_set_foreground(p);  // Ctrl+C now ends this program
     int code = process_wait_info(p, &killed);  // p is released afterwards
+    console_set_foreground(NULL);
     if (killed)
         printk("[%d %s] was killed\n", pid, argv[1]);
     else

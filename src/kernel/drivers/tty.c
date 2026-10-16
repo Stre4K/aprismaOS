@@ -338,3 +338,8 @@ uint8_t tty_get_color(void) {
 }
 
 
+
+void tty_sync_cursor(void) {
+    if (history_view + VGA_HEIGHT == history_head + 1)
+        vga_update_cursor(terminal_row, terminal_column);
+}

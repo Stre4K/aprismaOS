@@ -325,6 +325,27 @@ void thread_unblock(thread_t *t)
     irq_restore(flags);
 }
 
+void wait_queue_sleep(wait_queue_t *q)
+{
+    current->wait_next = q->head;
+    q->head = current;
+    thread_block();
+}
+
+void wait_queue_wake_all(wait_queue_t *q)
+{
+    unsigned long flags = irq_save();
+    thread_t *t = q->head;
+    q->head = NULL;
+    while (t) {
+        thread_t *next = t->wait_next;
+        t->wait_next = NULL;
+        thread_unblock(t);
+        t = next;
+    }
+    irq_restore(flags);
+}
+
 size_t thread_list(thread_info_t *out, size_t max)
 {
     size_t count = 0;
