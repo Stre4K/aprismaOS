@@ -19,7 +19,7 @@ OBJCOPY ?= objcopy
 LIBC_DIR    := $(ROOTDIR)/src/libc
 LIBC_SRCS   := $(filter-out $(LIBC_DIR)/stdio/putchar.c $(LIBC_DIR)/time/sleep.c, \
                  $(shell find $(LIBC_DIR) -name '*.c'))
-KERNEL_SRCS := $(ROOTDIR)/src/kernel/core/bitmap.c
+KERNEL_SRCS := $(ROOTDIR)/src/kernel/core/bitmap.c $(ROOTDIR)/src/kernel/fs/tar.c
 UUT_SRCS    := $(LIBC_SRCS) $(KERNEL_SRCS)
 UUT_OBJS    := $(patsubst $(ROOTDIR)/%.c,$(BUILD_DIR)/uut/%.o,$(UUT_SRCS))
 
@@ -28,11 +28,11 @@ UUT_OBJS    := $(patsubst $(ROOTDIR)/%.c,$(BUILD_DIR)/uut/%.o,$(UUT_SRCS))
 # prefixed __stack_chk_fail would not resolve
 UUT_CFLAGS := -std=gnu11 -O2 -g -ffreestanding -fno-builtin -nostdinc \
               -fno-stack-protector -fno-tree-loop-distribute-patterns \
-              -D__is_libk -I$(LIBC_DIR)/include -Wall -Wextra -Werror
+              -D__is_libk -I$(LIBC_DIR)/include -I$(ROOTDIR)/src/kernel/include -Wall -Wextra -Werror
 
 TEST_SRCS  := $(wildcard test_*.c) runner.c capture.c
 TEST_OBJS  := $(patsubst %.c,$(BUILD_DIR)/%.o,$(TEST_SRCS))
-TEST_CFLAGS := -std=gnu11 -O1 -g -Wall -Wextra -Werror
+TEST_CFLAGS := -std=gnu11 -O1 -g -Wall -Wextra -Werror -I$(ROOTDIR)/src/kernel/include
 
 BIN := $(BUILD_DIR)/unit-tests
 

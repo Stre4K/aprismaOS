@@ -63,6 +63,11 @@ void aprisma_set_bit(uint8_t *bitmap, uint32_t bit);
 void aprisma_clear_bit(uint8_t *bitmap, uint32_t bit);
 int aprisma_test_bit(uint8_t *bitmap, uint32_t bit);
 
+/* kernel/fs/tar.c (types from <kernel/fs.h>) */
+#include <kernel/fs.h>
+int aprisma_tar_parse(const uint8_t *archive, size_t size,
+                      bool (*entry)(const tar_entry_t *e, void *ctx), void *ctx);
+
 /* Output written through aprisma_putchar (see capture.c) */
 void capture_reset(void);
 const char *capture_text(void);

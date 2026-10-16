@@ -146,3 +146,17 @@ uintptr_t virt_to_phys(uintptr_t virt)
 
     return (pt[table] & ~0xFFF) | (virt & 0xFFF);
 }
+
+// i386 identity maps only the first 4 MiB; map anything above that at its
+// own address too, so P2V (identity) keeps working for it
+void *paging_map_physical(uintptr_t phys, size_t size)
+{
+    if (phys + size < phys)
+        return NULL;
+
+    for (uintptr_t page = phys & ~(uintptr_t)0xFFF; page < phys + size; page += 0x1000) {
+        if (virt_to_phys(page) == 0)
+            map_page(page, page);
+    }
+    return (void *)phys;
+}

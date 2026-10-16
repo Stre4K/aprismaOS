@@ -7,6 +7,7 @@
 #ifndef __KERNEL_MM_PAGING_H__
 #define __KERNEL_MM_PAGING_H__
 
+#include <stddef.h>
 #include <stdint.h>
 
 // Build the kernel's page tables and switch to them
@@ -20,6 +21,10 @@ uintptr_t unmap_page(uintptr_t virt);
 
 // Physical address behind a virtual address (0 if unmapped)
 uintptr_t virt_to_phys(uintptr_t virt);
+
+// Make a range of physical memory readable by the kernel (e.g. a boot
+// module) and return its virtual address; NULL if that is not possible
+void *paging_map_physical(uintptr_t phys, size_t size);
 
 #ifdef CONFIG_USERMODE
 #include <stdbool.h>

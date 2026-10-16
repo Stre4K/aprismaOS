@@ -12,5 +12,6 @@
 #define CONFIG_CMD_MEMORY 1
 #define CONFIG_CMD_DEBUG  1
 #define CONFIG_CMD_TESTS  1
+#define CONFIG_CMD_FS     1
 
 #endif // __KERNEL_CONFIG_H__`

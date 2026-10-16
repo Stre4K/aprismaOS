@@ -18,6 +18,7 @@
 #include <kernel/mm/paging.h>
 #include <kernel/mm/pmm.h>
 #include <kernel/mm/heap.h>
+#include <kernel/fs.h>
 #include <kernel/sched.h>
 #include <kernel/console.h>
 #ifdef CONFIG_USERMODE
@@ -71,6 +72,12 @@ void kernel_main(uint32_t magic, uintptr_t mb_info_phys) {
 
     kheap_init();
     printk("[HEAP] Initialized\n");
+
+    int fs_entries = fs_init(mb_info_ptr);
+    if (fs_entries >= 0)
+        printk("[FS] Ramdisk mounted: %d files and directories\n", fs_entries);
+    else
+        printk("[FS] No ramdisk found\n");
 
     if (cpuid_supported_check()) {
         cpuid_init();
