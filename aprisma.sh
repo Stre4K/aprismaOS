@@ -317,96 +317,10 @@ if [ "$GDB" = "1" ]; then
 # Generate compile_commands.json
 # ============================
 if [ "$GEN_COMPILE_DB" = "1" ]; then
-    # ============================
-    # Manual compile_commands.json generator for AprismaOS
-    # ============================
-
-    #ROOTDIR=$(pwd)
-    OBJ_DIR="$ROOTDIR/build/objects/$HOSTARCH"
-    SYSROOT="$ROOTDIR/build/AprismaOS/sysroot"
-
-    # Common flags
-    CFLAGS="-O2 -g -ffreestanding -Wall -Wextra -nostdlib -nostdinc -Werror"
-    #KERNEL_CPPFLAGS="-D__is_kernel -Isrc/kernel/include -I$SYSROOT/include"
-    #LIBC_CPPFLAGS="-D__is_libc -Isrc/libc/include -I$SYSROOT/include"
-
-    COMMON_INCLUDES="-Isrc/kernel/include -Isrc/libc/include"
-    KERNEL_CPPFLAGS="-D__is_kernel $COMMON_INCLUDES"
-    LIBC_CPPFLAGS="-D__is_libc $COMMON_INCLUDES"
-
-    OUT_JSON="$ROOTDIR/compile_commands.json"
-
-    # Clean previous
-    rm -f "$OUT_JSON"
-    mkdir -p "$OBJ_DIR/kernel" "$OBJ_DIR/libc"
-
-    echo "[" > "$OUT_JSON"
-    first=1
-
-    add_entry() {
-        file="$1"
-        dir="$2"
-        cmd="$3"
-
-        [ $first -eq 1 ] || echo "," >> "$OUT_JSON"
-        first=0
-        jq -n --arg d "$dir" --arg c "$cmd" --arg f "$file" '{directory:$d,command:$c,file:$f}' >> "$OUT_JSON"
-    }
-
-    # -------------------------
-    # Kernel entries
-    # -------------------------
-    echo "${BLUE}[kernel] Generating compile_commands.json${NC}"
-    #KERNEL_SRCS=$(find src/kernel/core src/kernel/arch/i386 -type f \( -name '*.c' -o -name '*.S' \))
-    KERNEL_SRCS=$(find $ROOTDIR/src/kernel/ -type f \( -name '*.c' -o -name '*.S' \))
-    for f in $KERNEL_SRCS; do
-        rel="${f#$ROOTDIR/src/kernel/}"
-        obj="$OBJ_DIR/kernel/${rel%.*}.o"
-        #obj="$OBJ_DIR/kernel/${rel%.S}.o"
-        mkdir -p "$(dirname "$obj")"
-
-        #if [[ "$f" == *.c ]]; then
-        #    cmd="$CC $CFLAGS $KERNEL_CPPFLAGS -std=gnu11 -c $f -o $obj"
-        #else
-        #    cmd="$CC $CFLAGS $KERNEL_CPPFLAGS -c $f -o $obj"
-        #fi
-
-        # Arch-specific files use their own compiler and headers; shared
-        # files use the architecture selected with --compiler
-        case "$rel" in
-            arch/i386/*)   FILE_CC=i686-elf-gcc;   FILE_ARCH=i386 ;;
-            arch/x86_64/*) FILE_CC=x86_64-elf-gcc; FILE_ARCH=x86_64 ;;
-            *)             FILE_CC="$CC";          FILE_ARCH="$HOSTARCH" ;;
-        esac
-        ARCH_INCLUDE="-Isrc/kernel/arch/$FILE_ARCH/include"
-
-        case "$f" in
-            *.c)
-                cmd="$FILE_CC $CFLAGS $ARCH_INCLUDE $KERNEL_CPPFLAGS -std=gnu11 -c $f -o $obj"
-                ;;
-            *)
-                cmd="$FILE_CC $CFLAGS $ARCH_INCLUDE $KERNEL_CPPFLAGS -c $f -o $obj"
-                ;;
-        esac
-        add_entry "$f" "$ROOTDIR" "$cmd"
-    done
-
-    # -------------------------
-    # Libc entries
-    # -------------------------
-    echo "${MAGENTA}[libc] Generating compile_commands.json${NC}"
-    LIBC_SRCS=$(find $ROOTDIR/src/libc -type f -name '*.c')
-    for f in $LIBC_SRCS; do
-        rel="${f#$ROOTDIR/src/libc/}"
-        obj="$OBJ_DIR/libc/${rel%.c}.o"
-        mkdir -p "$(dirname "$obj")"
-        cmd="$CC $CFLAGS $LIBC_CPPFLAGS -std=gnu11 -c $f -o $obj"
-        add_entry "$f" "$ROOTDIR" "$cmd"
-    done
-
-    echo "]" >> "$OUT_JSON"
-    echo "${GREEN_BOLD}[status] compile_commands.json generated at $OUT_JSON"
-
+    # The commands come from the Makefiles themselves (make -n), so every
+    # file gets exactly the flags it is built with
+    echo "${BLUE}[status] Generating compile_commands.json${NC}"
+    python3 "$ROOTDIR/scripts/gen_compile_db.py" --arch "$HOSTARCH" --root "$ROOTDIR" --make "$MAKE"
     exit 0
 fi
 
