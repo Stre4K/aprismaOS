@@ -97,6 +97,15 @@ void console_set_foreground(process_t *p) {
     if (old)
         process_release(old);
 }
+
+process_t *console_get_foreground(void) {
+    unsigned long flags = irq_save();
+    process_t *p = foreground;
+    if (p)
+        process_get(p);
+    irq_restore(flags);
+    return p;
+}
 #endif
 
 long console_read(char *buf, size_t len) {

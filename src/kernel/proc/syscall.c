@@ -17,6 +17,7 @@
 #include <kernel/sched.h>
 #include <kernel/console.h>
 #include <kernel/fs.h>
+#include <kernel/mm/heap.h>
 #include <string.h>
 
 #define PAGE_SIZE 4096
@@ -143,6 +144,109 @@ static int64_t sys_close(uint64_t fd)
     return 0;
 }
 
+// A spawn request copied out of user memory
+typedef struct {
+    char path[FS_PATH_MAX];
+    char strings[PROCESS_MAX_ARG_BYTES];
+    const char *argv[PROCESS_MAX_ARGS];
+} spawn_request_t;
+
+// Copy the NULL-terminated argv array and its strings; returns argc or an error
+static int64_t copy_user_argv(spawn_request_t *req, uint64_t user_argv)
+{
+    int argc = 0;
+    size_t used = 0;
+
+    for (;;) {
+        uint64_t slot = user_argv + (uint64_t)argc * sizeof(uint64_t);
+        if (!user_buffer_ok(slot, sizeof(uint64_t), false))
+            return -EFAULT;
+        uint64_t arg = *(const uint64_t *)(uintptr_t)slot;  // checked above
+        if (arg == 0)
+            break;
+        if (argc == PROCESS_MAX_ARGS)
+            return -E2BIG;
+
+        int64_t len = copy_user_string(req->strings + used, arg, sizeof(req->strings) - used);
+        if (len == -ENAMETOOLONG)
+            return -E2BIG;
+        if (len < 0)
+            return len;
+        req->argv[argc++] = req->strings + used;
+        used += (size_t)len + 1;
+    }
+    return argc;
+}
+
+static int64_t sys_spawn(uint64_t user_path, uint64_t user_argv)
+{
+    spawn_request_t *req = kmalloc(sizeof(*req));  // too big for the kernel stack
+    if (req == NULL)
+        return -ENOEXEC;
+
+    int64_t result = copy_user_string(req->path, user_path, sizeof(req->path));
+    if (result < 0)
+        goto out;
+
+    int64_t argc;
+    if (user_argv == 0) {
+        req->argv[0] = req->path;
+        argc = 1;
+    } else {
+        argc = copy_user_argv(req, user_argv);
+    }
+    if (argc <= 0) {
+        result = argc < 0 ? argc : -EINVAL;  // argv must have at least argv[0]
+        goto out;
+    }
+
+    if (process_find_program(req->path) == NULL) {
+        result = -ENOENT;
+        goto out;
+    }
+    process_t *child = process_spawn_args(req->path, (int)argc, req->argv);
+    if (child == NULL) {
+        result = -ENOEXEC;
+        goto out;
+    }
+    process_add_child(process_current(), child);
+    result = child->pid;
+
+out:
+    kfree(req);
+    return result;
+}
+
+static int64_t sys_wait(uint64_t pid, uint64_t user_code)
+{
+    if (user_code && !user_buffer_ok(user_code, sizeof(int), true))
+        return -EFAULT;
+
+    process_t *self = process_current();
+    process_t *child = process_take_child(self, (int)pid);
+    if (child == NULL)
+        return -ECHILD;
+
+    // Ctrl+C goes to the child while we wait, if we had the console (or
+    // nobody did)
+    process_t *previous = console_get_foreground();
+    bool hand_over = previous == NULL || previous == self;
+    if (hand_over)
+        console_set_foreground(child);
+
+    bool killed;
+    int code = process_wait_info(child, &killed);  // releases the child
+
+    if (hand_over)
+        console_set_foreground(previous);
+    if (previous)
+        process_release(previous);
+
+    if (user_code)
+        *(int *)(uintptr_t)user_code = code;  // checked above
+    return killed ? WAIT_KILLED : 0;
+}
+
 void syscall_dispatch(regs_t *regs)
 {
     // The call arrived through an interrupt gate; let other interrupts in
@@ -164,6 +268,12 @@ void syscall_dispatch(regs_t *regs)
             break;
         case SYS_CLOSE:
             result = sys_close(SYSCALL_ARG0(regs));
+            break;
+        case SYS_SPAWN:
+            result = sys_spawn(SYSCALL_ARG0(regs), SYSCALL_ARG1(regs));
+            break;
+        case SYS_WAIT:
+            result = sys_wait(SYSCALL_ARG0(regs), SYSCALL_ARG1(regs));
             break;
         case SYS_GETPID:
             result = process_current()->pid;

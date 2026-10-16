@@ -29,6 +29,10 @@ void console_interrupt(void);  // Ctrl+C
 // The process Ctrl+C ends (NULL for none). The console keeps its own
 // reference while it is the foreground process.
 void console_set_foreground(struct process *p);
+
+// The foreground process with a reference taken for the caller (which
+// must process_release() it), or NULL
+struct process *console_get_foreground(void);
 #endif
 
 #endif // __KERNEL_CONSOLE_H__

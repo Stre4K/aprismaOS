@@ -195,6 +195,25 @@ void process_get(process_t *p)
     irq_restore(flags);
 }
 
+void process_add_child(process_t *parent, process_t *child)
+{
+    child->next_sibling = parent->children;
+    parent->children = child;
+}
+
+process_t *process_take_child(process_t *parent, int pid)
+{
+    for (process_t **link = &parent->children; *link; link = &(*link)->next_sibling) {
+        process_t *child = *link;
+        if (child->pid == pid) {
+            *link = child->next_sibling;
+            child->next_sibling = NULL;
+            return child;
+        }
+    }
+    return NULL;
+}
+
 void process_check_kill(regs_t *regs)
 {
     process_t *p = process_current();
@@ -233,6 +252,14 @@ void process_exit(int code)
     process_t *p = process_current();
     if (p == NULL)
         panic("process_exit: not called from a process");
+
+    // Children nobody waited for keep running on their own; the thread
+    // reference frees each one when it ends
+    while (p->children) {
+        process_t *child = p->children;
+        p->children = child->next_sibling;
+        process_release(child);
+    }
 
     disable_interrupts();
     p->exit_code = code;
