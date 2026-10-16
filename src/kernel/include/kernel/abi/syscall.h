@@ -27,6 +27,13 @@
 
 #define SYS_READDIR 10  // readdir(const char *dir, size_t index, dirent_t *entry) -> 1, or 0 past the end
 
+#define SYS_BRK     11  // brk(void *end) -> the new end of the heap
+
+// brk: moves the end of the heap, which starts right after the program
+// and may grow to USER_HEAP_MAX bytes (64 MiB). New memory is zeroed;
+// brk(0) returns the current end. -ENOMEM if the end is out of range or
+// memory runs out (the heap then stays as it was).
+
 // readdir: fills in entry number `index` (0, 1, ...) of a directory
 #define DIRENT_NAME_MAX 256
 typedef struct {
@@ -42,6 +49,7 @@ typedef struct {
 #define ENOEXEC 8   // not a valid program (or out of memory loading it)
 #define EBADF   9   // bad file descriptor
 #define ECHILD 10   // no such child process (or already waited for)
+#define ENOMEM 12   // out of memory
 #define EFAULT 14   // bad address
 #define ENOTDIR 20  // not a directory
 #define EISDIR 21   // is a directory

@@ -49,6 +49,10 @@ void paging_switch_space(uintptr_t space);
 // is already mapped or page tables cannot be allocated
 bool paging_map_user(uintptr_t space, uintptr_t virt, uintptr_t phys, bool writable);
 
+// Remove one user page from a space (flushing the TLB if it is active);
+// returns the physical page that was mapped, 0 if none
+uintptr_t paging_unmap_user(uintptr_t space, uintptr_t virt);
+
 // True if the current space lets user mode read (or write) this address
 bool paging_user_access_ok(uintptr_t virt, bool write);
 #endif

@@ -34,6 +34,7 @@
 #define USER_END         0x0000800000000000UL  // end of the canonical lower half
 #define USER_STACK_TOP   0x00007FFFFFFFF000UL
 #define USER_STACK_PAGES 4                     // 16 KiB
+#define USER_HEAP_MAX    0x4000000UL           // 64 MiB of heap (brk) per process, after the program
 
 // Direct-map conversions
 #define P2V(phys) ((void *)((uintptr_t)(phys) + PHYS_MAP_BASE))

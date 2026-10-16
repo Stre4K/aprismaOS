@@ -285,6 +285,29 @@ bool paging_map_user(uintptr_t space, uintptr_t virt, uintptr_t phys, bool writa
     return true;
 }
 
+uintptr_t paging_unmap_user(uintptr_t space, uintptr_t virt)
+{
+    if (virt < USER_START || virt >= USER_END)
+        return 0;
+
+    uint64_t *table = P2V(space);
+    unsigned indices[3] = { PML4_INDEX(virt), PDPT_INDEX(virt), PD_INDEX(virt) };
+    for (int level = 0; level < 3; level++) {
+        uint64_t entry = table[indices[level]];
+        if (!(entry & PTE_PRESENT) || (entry & PTE_HUGE))
+            return 0;
+        table = P2V(entry & PTE_ADDR_MASK);
+    }
+
+    uint64_t entry = table[PT_INDEX(virt)];
+    if (!(entry & PTE_PRESENT))
+        return 0;
+    table[PT_INDEX(virt)] = 0;
+    if (space == (read_cr3() & PTE_ADDR_MASK))
+        invlpg(virt);
+    return entry & PTE_ADDR_MASK;  // the (now empty) page table stays until the space is destroyed
+}
+
 bool paging_user_access_ok(uintptr_t virt, bool write)
 {
     if (virt < USER_START || virt >= USER_END)

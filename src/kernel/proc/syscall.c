@@ -17,7 +17,9 @@
 #include <kernel/sched.h>
 #include <kernel/console.h>
 #include <kernel/fs.h>
+#include <kernel/arch/memlayout.h>
 #include <kernel/mm/heap.h>
+#include <kernel/mm/pmm.h>
 #include <string.h>
 
 #define PAGE_SIZE 4096
@@ -170,6 +172,56 @@ static int64_t sys_readdir(uint64_t user_dir, uint64_t index, uint64_t user_entr
     return 1;
 }
 
+#define PAGE_UP(x) (((x) + PAGE_SIZE - 1) & ~(uint64_t)(PAGE_SIZE - 1))
+
+// Unmap and free the heap pages in [from, to)
+static void heap_unmap(process_t *p, uint64_t from, uint64_t to)
+{
+    for (uint64_t page = from; page < to; page += PAGE_SIZE) {
+        uintptr_t phys = paging_unmap_user(p->space, page);
+        if (phys)
+            pmm_free_page((void *)phys);
+    }
+}
+
+static int64_t sys_brk(uint64_t end)
+{
+    process_t *p = process_current();
+    if (end == 0)
+        return (int64_t)p->brk;
+    if (end < p->heap_start || end - p->heap_start > USER_HEAP_MAX)
+        return -ENOMEM;
+    if (end > USER_STACK_TOP - (USER_STACK_PAGES + 1) * PAGE_SIZE)
+        return -ENOMEM;  // keep an unmapped guard page below the stack
+
+    uint64_t mapped = PAGE_UP(p->brk);
+    uint64_t wanted = PAGE_UP(end);
+
+    // Growing: map zeroed pages; on failure undo, leaving the heap as it was
+    for (uint64_t page = mapped; page < wanted; page += PAGE_SIZE) {
+        void *phys = pmm_alloc_page();
+        if (phys != NULL) {
+            memset(P2V(phys), 0, PAGE_SIZE);
+            if (paging_map_user(p->space, page, (uintptr_t)phys, true))
+                continue;
+            pmm_free_page(phys);
+        }
+        heap_unmap(p, mapped, page);
+        return -ENOMEM;
+    }
+
+    if (end < p->brk) {
+        // Shrinking: free whole pages, and clear the rest of the last page
+        // so memory handed out again by a later brk is zeroed too
+        heap_unmap(p, wanted, mapped);
+        uint64_t clear_to = p->brk < wanted ? p->brk : wanted;
+        memset((void *)(uintptr_t)end, 0, clear_to - end);  // mapped, this process's own
+    }
+
+    p->brk = end;
+    return (int64_t)end;
+}
+
 // A spawn request copied out of user memory
 typedef struct {
     char path[FS_PATH_MAX];
@@ -300,6 +352,9 @@ void syscall_dispatch(regs_t *regs)
             break;
         case SYS_WAIT:
             result = sys_wait(SYSCALL_ARG0(regs), SYSCALL_ARG1(regs));
+            break;
+        case SYS_BRK:
+            result = sys_brk(SYSCALL_ARG0(regs));
             break;
         case SYS_READDIR:
             result = sys_readdir(SYSCALL_ARG0(regs), SYSCALL_ARG1(regs), SYSCALL_ARG2(regs));

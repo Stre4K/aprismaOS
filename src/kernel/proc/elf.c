@@ -91,7 +91,7 @@ static bool load_segment(uintptr_t space, const uint8_t *image, const elf64_phdr
     return true;
 }
 
-uintptr_t elf_load(uintptr_t space, const uint8_t *image, size_t size)
+uintptr_t elf_load(uintptr_t space, const uint8_t *image, size_t size, uintptr_t *image_end)
 {
     if (size < sizeof(elf64_ehdr_t))
         return 0;
@@ -109,6 +109,7 @@ uintptr_t elf_load(uintptr_t space, const uint8_t *image, size_t size)
         return 0;
 
     const elf64_phdr_t *phdrs = (const elf64_phdr_t *)(image + eh->e_phoff);
+    uint64_t end = USER_START;
     for (unsigned i = 0; i < eh->e_phnum; i++) {
         const elf64_phdr_t *ph = &phdrs[i];
         if (ph->p_type != PT_LOAD)
@@ -117,8 +118,11 @@ uintptr_t elf_load(uintptr_t space, const uint8_t *image, size_t size)
             return 0;
         if (!load_segment(space, image, ph))
             return 0;  // the caller frees the partly built space
+        if (ph->p_vaddr + ph->p_memsz > end)
+            end = ph->p_vaddr + ph->p_memsz;  // checked against USER_LOAD_END above
     }
 
+    *image_end = (end + PAGE_SIZE - 1) & ~(uint64_t)(PAGE_SIZE - 1);
     return eh->e_entry;
 }
 
