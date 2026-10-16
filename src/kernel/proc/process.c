@@ -49,7 +49,9 @@ static void process_start(void *arg)
     arch_enter_user(p->entry, p->user_sp);
 }
 
-static bool map_user_stack(process_t *p)
+// Map the user stack; `pages` receives the physical page of each stack
+// page, top page first
+static bool map_user_stack(process_t *p, uintptr_t pages[USER_STACK_PAGES])
 {
     for (int i = 0; i < USER_STACK_PAGES; i++) {
         void *phys = pmm_alloc_page();
@@ -60,13 +62,87 @@ static bool map_user_stack(process_t *p)
             pmm_free_page(phys);
             return false;
         }
+        pages[i] = (uintptr_t)phys;
     }
-    p->user_sp = USER_STACK_TOP;
+    return true;
+}
+
+// Copy into the (not yet active) process's stack at user address `vaddr`,
+// through the direct map; the stack's physical pages need not be adjacent
+static void stack_write(const uintptr_t pages[USER_STACK_PAGES], uintptr_t vaddr,
+                        const void *src, size_t len)
+{
+    const uint8_t *from = src;
+    while (len > 0) {
+        size_t index = (USER_STACK_TOP - 1 - vaddr) / PAGE_SIZE;  // 0 = top page
+        uintptr_t page_start = USER_STACK_TOP - (index + 1) * PAGE_SIZE;
+        size_t offset = vaddr - page_start;
+        size_t chunk = PAGE_SIZE - offset < len ? PAGE_SIZE - offset : len;
+
+        memcpy((uint8_t *)P2V(pages[index]) + offset, from, chunk);
+        vaddr += chunk;
+        from += chunk;
+        len -= chunk;
+    }
+}
+
+// Lay out the arguments the way the System V x86-64 ABI expects at the
+// program's entry point. From the stack pointer (16-byte aligned) up:
+//
+//   argc, argv[0] .. argv[argc-1], NULL,  NULL (no environment),
+//   0, 0 (empty auxiliary vector),  then the argument strings
+static uintptr_t push_arguments(const uintptr_t pages[USER_STACK_PAGES], int argc, const char *const argv[])
+{
+    uintptr_t sp = USER_STACK_TOP;
+    uint64_t pointers[PROCESS_MAX_ARGS];
+
+    for (int i = argc - 1; i >= 0; i--) {
+        size_t len = strlen(argv[i]) + 1;
+        sp -= len;
+        stack_write(pages, sp, argv[i], len);
+        pointers[i] = sp;
+    }
+
+    size_t words = 1 + (size_t)argc + 1 + 1 + 2;
+    sp = (sp - words * sizeof(uint64_t)) & ~(uintptr_t)15;
+
+    uintptr_t at = sp;
+    uint64_t value = (uint64_t)argc;
+    stack_write(pages, at, &value, sizeof(value));
+    at += sizeof(value);
+    stack_write(pages, at, pointers, (size_t)argc * sizeof(uint64_t));
+    at += (size_t)argc * sizeof(uint64_t);
+
+    uint64_t terminators[4] = { 0, 0, 0, 0 };  // argv end, envp end, AT_NULL
+    stack_write(pages, at, terminators, sizeof(terminators));
+
+    return sp;
+}
+
+static bool arguments_fit(int argc, const char *const argv[])
+{
+    if (argc < 1 || argc > PROCESS_MAX_ARGS)
+        return false;
+    size_t bytes = 0;
+    for (int i = 0; i < argc; i++) {
+        bytes += strlen(argv[i]) + 1;
+        if (bytes > PROCESS_MAX_ARG_BYTES)
+            return false;
+    }
     return true;
 }
 
 process_t *process_spawn(const char *name)
 {
+    const char *argv[1] = { name };
+    return process_spawn_args(name, 1, argv);
+}
+
+process_t *process_spawn_args(const char *name, int argc, const char *const argv[])
+{
+    if (!arguments_fit(argc, argv))
+        return NULL;
+
     const fs_node_t *program = process_find_program(name);
     if (program == NULL)
         return NULL;
@@ -85,8 +161,10 @@ process_t *process_spawn(const char *name)
         goto fail;
 
     p->entry = elf_load(p->space, program->data, program->size);
-    if (p->entry == 0 || !map_user_stack(p))
+    uintptr_t stack_pages[USER_STACK_PAGES];
+    if (p->entry == 0 || !map_user_stack(p, stack_pages))
         goto fail;
+    p->user_sp = push_arguments(stack_pages, argc, argv);
 
     if (thread_create_in(p->name, process_start, p, p->space, p) == NULL)
         goto fail;

@@ -336,6 +336,31 @@ static void test_user(void)
     errors += !expect_exit("badptr", 0);
     errors += !expect_exit("files", 0);  // open/read/close on the ramdisk
 
+    // Arguments: args exits with argc (100+ means a broken stack layout)
+    static const char *const three[] = { "args", "alpha", "beta", "gamma" };
+    static const char *many[PROCESS_MAX_ARGS + 1];
+    static char long_arg[PROCESS_MAX_ARG_BYTES];
+    for (int i = 0; i <= PROCESS_MAX_ARGS; i++)
+        many[i] = "x";
+    memset(long_arg, 'a', sizeof(long_arg) - 1);
+    const char *too_long[] = { "args", long_arg };
+
+    process_t *with_args = process_spawn_args("args", 4, three);
+    int args_code = with_args ? process_wait(with_args) : -1;
+    process_t *max_args = process_spawn_args("args", PROCESS_MAX_ARGS, many);
+    int max_code = max_args ? process_wait(max_args) : -1;
+    process_t *over = process_spawn_args("args", PROCESS_MAX_ARGS + 1, many);
+    process_t *over_bytes = process_spawn_args("args", 2, too_long);
+    if (args_code != 4 || max_code != PROCESS_MAX_ARGS || over || over_bytes) {
+        printk("user test: arguments wrong (exit %d and %d, too many %s, too long %s)\n", args_code,
+               max_code, over ? "accepted" : "refused", over_bytes ? "accepted" : "refused");
+        errors++;
+        if (over)
+            process_wait(over);
+        if (over_bytes)
+            process_wait(over_bytes);
+    }
+
     // Faults in user mode end the process, not the kernel
     errors += !expect_killed("crash");
     errors += !expect_killed("privileged");
