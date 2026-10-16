@@ -29,6 +29,7 @@ static size_t queue_start;
 static size_t queue_length;
 static int lines_queued;        // complete lines in the queue
 static int eofs_queued;         // pending Ctrl+D presses
+static unsigned interrupts;     // Ctrl+C presses so far
 static wait_queue_t readers;
 
 #ifdef CONFIG_USERMODE
@@ -74,14 +75,15 @@ void console_eof(void) {
 }
 
 void console_interrupt(void) {
-#ifdef CONFIG_USERMODE
     unsigned long flags = irq_save();
+    interrupts++;
+#ifdef CONFIG_USERMODE
     if (foreground)
         foreground->kill_pending = true;  // acted on when it next returns to user mode
+#endif
     irq_restore(flags);
 
     wait_queue_wake_all(&readers);  // a blocked read() must notice
-#endif
 }
 
 #ifdef CONFIG_USERMODE
@@ -110,6 +112,7 @@ process_t *console_get_foreground(void) {
 
 long console_read(char *buf, size_t len) {
     unsigned long flags = irq_save();
+    unsigned interrupts_seen = interrupts;
 
     for (;;) {
 #ifdef CONFIG_USERMODE
@@ -139,6 +142,12 @@ long console_read(char *buf, size_t len) {
             eofs_queued--;
             irq_restore(flags);
             return 0;
+        }
+
+        // Ctrl+C while waiting: give up (a shell then prints a new prompt)
+        if (interrupts != interrupts_seen) {
+            irq_restore(flags);
+            return -EINTR;
         }
 
         wait_queue_sleep(&readers);

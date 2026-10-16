@@ -17,7 +17,8 @@ void console_start(void);
 // Read input, a line at a time: blocks until a whole line was entered,
 // then copies up to `len` bytes of it including the '\n' (the rest of a
 // longer line stays for the next read). Returns the number of bytes, 0 at
-// end of input (Ctrl+D) or -EINTR if the calling process is being killed.
+// end of input (Ctrl+D), or -EINTR if the calling process is being killed
+// or Ctrl+C was pressed while it waited.
 long console_read(char *buf, size_t len);
 
 // From the line editor
