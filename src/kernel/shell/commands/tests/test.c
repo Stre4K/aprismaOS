@@ -362,6 +362,29 @@ static bool heap_out_of_memory(void)
     return true;
 }
 
+// Ctrl+C must reach a process waiting on a pipe that nothing else will
+// touch: here it waits to write into a full pipe only it could read
+static bool interrupt_wakes_pipe_writer(void)
+{
+    const char *argv[] = { "pipes", "block" };
+    process_t *p = process_spawn_args("pipes", 2, argv, NULL);
+    if (p == NULL)
+        return false;
+    thread_sleep(100);  // let it fill the pipe and wait
+    process_interrupt_group(p->pgid);
+    for (int i = 0; i < 100 && !p->exited; i++)
+        thread_sleep(10);
+    if (!p->exited) {
+        printk("user test: Ctrl+C did not wake a process waiting on a pipe\n");
+        return false;  // it stays stuck; only happens when this is broken
+    }
+    bool killed;
+    process_wait_info(p, &killed);
+    if (!killed)
+        printk("user test: pipes block was not killed\n");
+    return killed;
+}
+
 static void test_user(void)
 {
     int errors = 0;
@@ -398,6 +421,10 @@ static void test_user(void)
 
     // Processes starting processes: spawn, wait and readdir from user mode
     errors += !expect_exit("spawner", 0);
+
+    // Pipes, descriptors and spawn options
+    errors += !expect_exit("pipes", 0);
+    errors += !interrupt_wakes_pipe_writer();
 
     // The heap: brk and malloc, and running out of memory
     errors += !expect_exit("heaptest", 0);
@@ -458,6 +485,7 @@ static void test_user(void)
         errors += !expect_exit("spawner", 0);  // also leaves a child behind each time
     errors += !expect_exit("heaptest", 0);     // its heap pages must come back
     errors += !heap_out_of_memory();           // and those of a brk that failed halfway
+    errors += !expect_exit("pipes", 0);        // pipes and open files must be freed
     thread_sleep(50);
 
     kheap_stats_t heap_after;

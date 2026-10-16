@@ -320,6 +320,10 @@ jobs:
             --run "args one 'two three'" "argv\[2\]=two three" \
             --run "cat /etc/motd" "Welcome to AprismaOS!" \
             --run "sort /etc/motd" "This file was read.*\nWelcome to AprismaOS!" \
+            --run "cat /etc/motd | sort" "This file was read.*\nWelcome to AprismaOS!" \
+            --run "sort < /etc/motd" "This file was read.*\nWelcome to AprismaOS!" \
+            --run "ls /bin | wc" "(?m)^[0-9]+ [0-9]+ [0-9]+$" \
+            --run "echo 'echo inner' | sh" '\$ inner\n\$ exit' \
             --run "nope" "sh: nope: command not found" \
             --run "exit 3" "/bin/sh exited with code 3" \
             --run "version" "AprismaOS v[^ ]+ \(x86_64\)"
