@@ -94,7 +94,7 @@ void kernel_main(uint32_t magic, uintptr_t mb_info_phys) {
 
     int fs_entries = fs_init(mb_info_ptr);
     if (fs_entries >= 0)
-        printk("[FS] Ramdisk mounted: %d files and directories\n", fs_entries);
+        printk("[FS] Ramdisk mounted: %d files and directories; /tmp is writable\n", fs_entries);
     else
         printk("[FS] No ramdisk found\n");
 

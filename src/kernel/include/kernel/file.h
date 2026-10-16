@@ -11,6 +11,7 @@
 
 #ifdef CONFIG_USERMODE
 
+#include <kernel/abi/syscall.h>
 #include <kernel/fs.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -19,7 +20,7 @@
 
 typedef enum {
     FILE_CONSOLE,     // keyboard input (a line at a time) and screen output
-    FILE_RAMDISK,     // a file from the ramdisk, read-only
+    FILE_NODE,        // a file in the filesystem
     FILE_PIPE_READ,   // the reading end of a pipe
     FILE_PIPE_WRITE,  // the writing end of a pipe
 } file_type_t;
@@ -29,8 +30,9 @@ struct pipe;
 typedef struct file {
     file_type_t type;
     int refs;
-    const fs_node_t *node;  // FILE_RAMDISK
-    size_t offset;          // FILE_RAMDISK: where the next read starts
+    fs_node_t *node;        // FILE_NODE
+    size_t offset;          // FILE_NODE: where the next read or write starts
+    int flags;              // FILE_NODE: the O_* flags it was opened with
     struct pipe *pipe;      // FILE_PIPE_*
 } file_t;
 
@@ -38,8 +40,9 @@ typedef struct file {
 // with a reference taken.
 file_t *file_console(void);
 
-// A new open file for a ramdisk node, or NULL when out of memory
-file_t *file_open_node(const fs_node_t *node);
+// Open the file at `path` (O_* flags, see fs_open()); returns 0 or a
+// negative error
+int file_open_path(const char *path, int flags, file_t **out);
 
 // A new pipe: what is written to *write_end can be read from *read_end.
 // False when out of memory.
@@ -53,9 +56,13 @@ void file_put(file_t *f);  // drop one; the last frees the file
 // data and return 0 once every writer is gone; pipe writes wait for room
 // and fail with -EPIPE once every reader is gone. Both return -EINTR if
 // the process is being killed (Ctrl+C) while it waits. -EBADF if the file
-// cannot be read (or written).
+// cannot be read (or written). Files read and write at their position
+// (writes with O_APPEND at the end), which then moves past the bytes.
 long file_read(file_t *f, void *buf, size_t len);
 long file_write(file_t *f, const void *buf, size_t len);
+
+// What fstat reports about an open file
+void file_stat(file_t *f, stat_t *st);
 
 #endif // CONFIG_USERMODE
 

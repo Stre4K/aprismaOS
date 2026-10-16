@@ -117,14 +117,20 @@ static void test_heap(void)
     if (!kheap_check())
         errors++;
 
-    if (after.used_blocks != before.used_blocks || after.heap_size != before.heap_size) {
+    if (after.used_blocks != before.used_blocks || after.used_bytes != before.used_bytes ||
+        after.heap_size > before.heap_size) {
         printk("heap test: memory not fully returned (%u blocks, %u KB)\n",
                (uint32_t)after.used_blocks, (uint32_t)(after.heap_size / 1024));
         errors++;
     }
 
-    if (pmm_free_pages() != pmm_before) {
-        printk("heap test: PMM leaked %u pages\n", pmm_before - pmm_free_pages());
+    // The heap may end up smaller than it started (a free tail left by
+    // earlier work can be trimmed now), but every page has to add up
+    uint32_t heap_pages_before = (uint32_t)(before.heap_size / 4096);
+    uint32_t heap_pages_after = (uint32_t)(after.heap_size / 4096);
+    if (pmm_free_pages() + heap_pages_after != pmm_before + heap_pages_before) {
+        printk("heap test: PMM leaked %d pages\n",
+               (int)(pmm_before + heap_pages_before) - (int)(pmm_free_pages() + heap_pages_after));
         errors++;
     }
 
@@ -422,6 +428,9 @@ static void test_user(void)
     // Processes starting processes: spawn, wait and readdir from user mode
     errors += !expect_exit("spawner", 0);
 
+    // The writable filesystem
+    errors += !expect_exit("fstest", 0);
+
     // Pipes, descriptors and spawn options
     errors += !expect_exit("pipes", 0);
     errors += !interrupt_wakes_pipe_writer();
@@ -486,6 +495,7 @@ static void test_user(void)
     errors += !expect_exit("heaptest", 0);     // its heap pages must come back
     errors += !heap_out_of_memory();           // and those of a brk that failed halfway
     errors += !expect_exit("pipes", 0);        // pipes and open files must be freed
+    errors += !expect_exit("fstest", 0);       // and files made and removed in /tmp
     thread_sleep(50);
 
     kheap_stats_t heap_after;

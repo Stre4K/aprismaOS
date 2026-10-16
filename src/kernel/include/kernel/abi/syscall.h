@@ -12,7 +12,7 @@
 #define SYS_SLEEP   3   // sleep(unsigned ms) -> 0
 #define SYS_YIELD   4   // yield() -> 0
 #define SYS_READ    5   // read(int fd, void *buf, size_t len) -> bytes read, 0 at end of input/file
-#define SYS_OPEN    6   // open(const char *path) -> file descriptor (the ramdisk is read-only)
+#define SYS_OPEN    6   // open(const char *path, int flags) -> file descriptor
 #define SYS_CLOSE   7   // close(int fd) -> 0
 #define SYS_SPAWN   8   // spawn(const char *path, char *const argv[], const spawn_options_t *options) -> pid
 #define SYS_WAIT    9   // wait(int pid, int *code) -> 0, or WAIT_KILLED if it was killed
@@ -38,6 +38,34 @@ typedef struct {
 
 #define SYS_BRK     11  // brk(void *end) -> the new end of the heap
 #define SYS_PIPE    12  // pipe(int fds[2]) -> 0; what is written to fds[1] can be read from fds[0]
+
+#define SYS_MKDIR   13  // mkdir(const char *path) -> 0
+#define SYS_UNLINK  14  // unlink(const char *path) -> 0 (files)
+#define SYS_RMDIR   15  // rmdir(const char *path) -> 0 (empty directories)
+#define SYS_STAT    16  // stat(const char *path, stat_t *st) -> 0
+#define SYS_FSTAT   17  // fstat(int fd, stat_t *st) -> 0
+#define SYS_DUP2    18  // dup2(int fd, int new_fd) -> new_fd, now the same open file as fd
+
+// open flags. The ramdisk is read-only; /tmp is writable. O_CREAT makes a
+// missing file, O_TRUNC empties it, O_APPEND writes at the end every time.
+#define O_RDONLY  0
+#define O_WRONLY  1
+#define O_RDWR    2
+#define O_ACCMODE 3
+#define O_CREAT   0x40
+#define O_TRUNC   0x200
+#define O_APPEND  0x400
+
+// stat / fstat
+#define STAT_FILE    1
+#define STAT_DIR     2
+#define STAT_CONSOLE 3  // the keyboard and screen (isatty)
+#define STAT_PIPE    4
+typedef struct {
+    unsigned long size;  // bytes in a file (0 otherwise)
+    int type;            // STAT_*
+    int writable;        // a file or directory that may be changed
+} stat_t;
 
 // Descriptors: 0, 1 and 2 are stdin, stdout and stderr, open and close
 // work on any of them, and open and pipe take the lowest free ones. A pipe
@@ -67,13 +95,18 @@ typedef struct {
 #define EBADF   9   // bad file descriptor
 #define ECHILD 10   // no such child process (or already waited for)
 #define ENOMEM 12   // out of memory
+#define EEXIST 17   // already exists
 #define EFAULT 14   // bad address
 #define ENOTDIR 20  // not a directory
 #define EISDIR 21   // is a directory
 #define EINVAL 22   // invalid argument
 #define EMFILE 24   // too many open files
+#define EFBIG  27   // file too large
+#define ENOSPC 28   // no space left (for writable files)
+#define EROFS  30   // read-only (the ramdisk)
 #define ENAMETOOLONG 36  // path too long
 #define EPIPE  32   // the reading end of the pipe is closed
 #define ENOSYS 38   // unknown system call
+#define ENOTEMPTY 39  // directory not empty
 
 #endif // __KERNEL_ABI_SYSCALL_H__

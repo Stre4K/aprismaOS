@@ -401,6 +401,29 @@ def ctrl_c_ends_a_program_waiting_on_an_empty_pipe(vm):
 
 
 @user_shell
+def typed_lines_go_into_a_file(vm):
+    vm.qmp.type("cat > /tmp/notes\n")
+    vm.settle()
+    vm.qmp.type("first\nsecond\n")
+    vm.settle()
+    vm.qmp.tap("ctrl", "d")
+    vm.wait(r"(?m)^\$$")
+    vm.qmp.type("echo third >> /tmp/notes\n")
+    vm.qmp.type("wc < /tmp/notes\n")
+    vm.wait(r"(?m)^3 3 19$")
+    vm.qmp.type("sort /tmp/notes\n")
+    vm.wait(r"(?m)^first\nsecond\nthird$")
+
+
+@user_shell
+def a_script_runs_without_prompts(vm):
+    vm.qmp.type("echo 'echo one' > /tmp/s\n")
+    vm.qmp.type("echo 'echo two | wc' >> /tmp/s\n")
+    vm.qmp.type("sh < /tmp/s\n")
+    vm.wait(r"(?m)^\$ sh < /tmp/s\none\n1 1 4\n\$$")  # no "$ " before the script's output
+
+
+@user_shell
 def ctrl_c_at_the_user_shell_prompt_gives_a_new_prompt(vm):
     vm.qmp.type("echo bad")
     vm.qmp.tap("ctrl", "c")
@@ -475,6 +498,8 @@ SCENARIOS = [
     pipeline_reads_the_keyboard_until_ctrl_d,
     ctrl_c_ends_every_program_of_a_pipeline,
     ctrl_c_ends_a_program_waiting_on_an_empty_pipe,
+    typed_lines_go_into_a_file,
+    a_script_runs_without_prompts,
     ctrl_c_at_the_user_shell_prompt_gives_a_new_prompt,
     ctrl_c_ends_the_program_not_the_user_shell,
     ctrl_c_in_a_nested_shell_ends_only_its_program,

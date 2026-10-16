@@ -15,19 +15,18 @@ void cmd_cat(int argc, char **argv) {
         return;
     }
 
+    fs_lock();  // the file cannot change while it is printed
     const fs_node_t *node = fs_lookup(argv[1]);
     if (node == NULL) {
         printk("cat: %s: no such file\n", argv[1]);
-        return;
-    }
-    if (node->is_dir) {
+    } else if (node->is_dir) {
         printk("cat: %s: is a directory\n", argv[1]);
-        return;
+    } else {
+        printk("%.*s", (int)node->size, (const char *)node->data);
+        if (node->size > 0 && node->data[node->size - 1] != '\n')
+            printk("\n");
     }
-
-    printk("%.*s", (int)node->size, (const char *)node->data);
-    if (node->size > 0 && node->data[node->size - 1] != '\n')
-        printk("\n");
+    fs_unlock();
 }
 
 SHELL_CMD("fs", "cat", "Print a file", cmd_cat);

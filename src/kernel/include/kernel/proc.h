@@ -65,7 +65,8 @@ process_t *process_spawn(const char *name);
 process_t *process_spawn_args(const char *name, int argc, const char *const argv[],
                               const process_options_t *options);
 
-// The filesystem node of the program `name` would run, or NULL
+// The filesystem node of the program `name` would run, or NULL. Look
+// inside it only under fs_lock().
 const fs_node_t *process_find_program(const char *name);
 
 // Block until the process exits, release it and return its exit code.
