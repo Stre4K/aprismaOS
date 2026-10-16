@@ -144,6 +144,32 @@ static int64_t sys_close(uint64_t fd)
     return 0;
 }
 
+static int64_t sys_readdir(uint64_t user_dir, uint64_t index, uint64_t user_entry)
+{
+    char dir[FS_PATH_MAX];
+    int64_t len = copy_user_string(dir, user_dir, sizeof(dir));
+    if (len < 0)
+        return len;
+    if (!user_buffer_ok(user_entry, sizeof(dirent_t), true))
+        return -EFAULT;
+
+    const fs_node_t *node = fs_lookup(dir);
+    if (node == NULL)
+        return -ENOENT;
+    if (!node->is_dir)
+        return -ENOTDIR;
+
+    const char *name;
+    node = fs_list(dir, (size_t)index, &name);
+    if (node == NULL)
+        return 0;  // no more entries
+
+    dirent_t entry = { .size = node->size, .is_dir = node->is_dir };
+    strncpy(entry.name, name, sizeof(entry.name) - 1);
+    memcpy((void *)(uintptr_t)user_entry, &entry, sizeof(entry));  // checked above
+    return 1;
+}
+
 // A spawn request copied out of user memory
 typedef struct {
     char path[FS_PATH_MAX];
@@ -274,6 +300,9 @@ void syscall_dispatch(regs_t *regs)
             break;
         case SYS_WAIT:
             result = sys_wait(SYSCALL_ARG0(regs), SYSCALL_ARG1(regs));
+            break;
+        case SYS_READDIR:
+            result = sys_readdir(SYSCALL_ARG0(regs), SYSCALL_ARG1(regs), SYSCALL_ARG2(regs));
             break;
         case SYS_GETPID:
             result = process_current()->pid;

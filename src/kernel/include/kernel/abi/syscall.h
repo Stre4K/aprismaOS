@@ -25,6 +25,16 @@
 // the caller waits, Ctrl+C goes to the child.
 #define WAIT_KILLED 1   // ended by a fault or Ctrl+C rather than exit()
 
+#define SYS_READDIR 10  // readdir(const char *dir, size_t index, dirent_t *entry) -> 1, or 0 past the end
+
+// readdir: fills in entry number `index` (0, 1, ...) of a directory
+#define DIRENT_NAME_MAX 256
+typedef struct {
+    unsigned long size;          // file size in bytes (0 for directories)
+    int is_dir;
+    char name[DIRENT_NAME_MAX];  // the name inside the directory, not a full path
+} dirent_t;
+
 // Errors are returned as negative values
 #define ENOENT  2   // no such file or directory
 #define EINTR   4   // interrupted (the process is being killed)
@@ -33,6 +43,7 @@
 #define EBADF   9   // bad file descriptor
 #define ECHILD 10   // no such child process (or already waited for)
 #define EFAULT 14   // bad address
+#define ENOTDIR 20  // not a directory
 #define EISDIR 21   // is a directory
 #define EINVAL 22   // invalid argument
 #define EMFILE 24   // too many open files
