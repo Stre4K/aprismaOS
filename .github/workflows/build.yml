@@ -299,7 +299,8 @@ jobs:
           fi
           # User mode only exists on x86_64 so far
           if [ "${{ matrix.arch }}" = "x86_64" ]; then
-            set -- --run "run hello" "Hello from user mode!" --run "test user" "user test: [0-9]+ wakeups during spin, passed"
+            set -- --run "run hello" "Hello from user mode!" --run "test user" "user test: [0-9]+ wakeups during spin, passed" \
+                   --run "run args one two three" "argv\[3\]=three" --run "run cat /etc/motd" "cat\] exited with code 0"
           fi
           python3 scripts/qemu_boot_test.py --arch ${{ matrix.arch }} $IMAGE --timeout 120 --check-serial "$@" \
             --run "cat /etc/motd" "Welcome to AprismaOS!" \

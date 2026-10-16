@@ -300,6 +300,16 @@ def input_typed_ahead_reaches_the_program(vm):
     vm.wait(r"(?m)^Hello, Bob!$")
 
 
+@usermode
+def cat_without_arguments_copies_keyboard_input(vm):
+    vm.qmp.type("run cat\n")
+    vm.settle()
+    vm.qmp.type("first line\n")
+    vm.wait(r"(?m)^first line\n+first line$")  # typed, then printed back
+    vm.qmp.tap("ctrl", "d")
+    vm.wait(r"\[\d+ cat\] exited with code 0")
+
+
 def ctrl_d_at_the_shell_prompt_is_harmless(vm):
     vm.qmp.tap("ctrl", "d")
     vm.qmp.type("echo still here\n")
@@ -323,6 +333,7 @@ SCENARIOS = [
     ctrl_c_kills_a_busy_program,
     ctrl_c_kills_a_program_waiting_for_input,
     input_typed_ahead_reaches_the_program,
+    cat_without_arguments_copies_keyboard_input,
 ]
 
 
