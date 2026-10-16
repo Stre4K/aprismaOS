@@ -58,16 +58,17 @@ What works today (both architectures unless noted):
 - **Scheduling**: preemptive round-robin kernel threads with sleeping and wait queues.
 - **Drivers**: VGA text mode with scrollback, PS/2 keyboard with line editing, the PIT timer,
   and a serial port that mirrors all console output (COM1).
-- **Filesystem**: a read-only ramdisk (a tar archive the bootloader loads next to the kernel)
-  with `/bin` for programs and files like `/etc/motd`.
+- **Filesystem**: one tree in memory. The ramdisk (a tar archive the bootloader loads next to
+  the kernel) fills it at boot with `/bin` for programs and files like `/etc/motd`, read-only;
+  `/tmp` is writable (files up to 4 MiB, 16 MiB in all, gone after a reboot).
 - **User mode** (x86_64): programs run in ring 3 and use system calls (`int 0x80`) for
-  file descriptors (the console, ramdisk files and pipes), starting and waiting for other
-  programs, listing directories, and growing their heap (`brk`). Faults end the program,
+  file descriptors (the console, files and pipes), files and directories (create, write,
+  remove, `stat`), starting and waiting for other programs, and growing their heap (`brk`). Faults end the program,
   not the kernel; Ctrl+C ends the foreground process group. x87/SSE registers are saved
   for each process.
 - **User space** (x86_64): a C runtime with `malloc`/`free`, a shell (`/bin/sh`) with
-  pipelines and input redirection, and programs such as `ls`, `cat`, `echo`, `sort`, `wc`
-  and `yes`.
+  pipelines and redirection (`<`, `>`, `>>`), and programs such as `ls`, `cat`, `echo`, `sort`,
+  `wc`, `yes`, `cp`, `mkdir`, `rm` and `rmdir`.
 - **Kernel shell**: built-in commands for debugging (`help` lists them), also reachable when
   there is no ramdisk.
 - **Tests**: host unit tests for libc and kernel helpers, and QEMU tests that boot the system
@@ -85,11 +86,13 @@ $ ls /bin
 $ cat /etc/motd
 $ echo "two words" and more
 $ ls /bin | sort | wc
-$ sort < /etc/motd
+$ ls /bin > /tmp/list
+$ sort < /tmp/list
+$ cat > /tmp/notes        (type lines, then Ctrl+D)
 ```
 
-Type a program's name and its arguments; `a | b` sends a's output to b, and `a < file` lets
-a read a file. `help` lists the built-in commands. Ctrl+C ends the running programs (or
+Type a program's name and its arguments; `a | b` sends a's output to b, `a < file` lets a
+read a file, and `a > file` (or `>>` to add to the end) writes one. Only `/tmp` is writable. `help` lists the built-in commands. Ctrl+C ends the running programs (or
 starts a new line at the prompt), Ctrl+D ends input, and `exit` (or Ctrl+D at the prompt)
 leaves for the kernel shell. There, `help` lists the kernel's own
 commands, `run <program> [arguments...]` starts a program and `test` runs self-tests
@@ -163,7 +166,7 @@ AprismaOS is a work in progress, with several planned features and enhancements.
 
 - [ ] **Filesystem & Storage**
   - [ ] Implement a virtual filesystem (VFS) layer.
-  - [ ] Support basic file reading and writing (reading works, from the read-only ramdisk).
+  - [X] Support basic file reading and writing (in memory: the ramdisk is read-only, `/tmp` writable).
 
 ---
 </details>
