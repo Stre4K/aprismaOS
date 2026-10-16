@@ -5,6 +5,11 @@
 //
 //   a | b | c      a pipeline: each program's output is the next one's input
 //   a < file       the first program reads the file instead of the keyboard
+//   a > file       the last program writes the file instead of the screen
+//   a >> file      ... adding to the end of the file
+//
+// Only /tmp is writable. Prompts are only shown when the input is the
+// keyboard, so "sh < script" or "... | sh" runs commands quietly.
 //
 // All programs of a pipeline form one process group, so Ctrl+C ends all of
 // them. Built in: exit [code], help. Ctrl+C at the prompt starts a new
@@ -72,16 +77,24 @@ static int read_line(char *line)
 
 static char words[2 * LINE_MAX];  // the words, each NUL-terminated
 
+typedef struct {
+    char *input;       // "< file", or NULL
+    char *output;      // "> file" or ">> file", or NULL
+    int append;        // ">>"
+} redirect_t;
+
 // Split a line into commands; returns how many (0 for an empty line, -1
-// after printing an error). *input_file is set for "< file".
-static int parse(const char *line, command_t cmds[STAGES_MAX], char **input_file)
+// after printing an error), with the redirections in *redir
+static int parse(const char *line, command_t cmds[STAGES_MAX], redirect_t *redir)
 {
     int count = 1;
     command_t *cmd = &cmds[0];
     char *out = words;
-    int expect_file = 0;  // the next word follows '<'
+    char **expect_file = 0;  // where the next word goes after '<' or '>'
+    int output_stage = -1;   // the program "> file" belongs to
     cmd->argc = 0;
-    *input_file = 0;
+    redir->input = redir->output = 0;
+    redir->append = 0;
 
     for (const char *in = line;;) {
         while (*in == ' ' || *in == '\t')
@@ -90,18 +103,23 @@ static int parse(const char *line, command_t cmds[STAGES_MAX], char **input_file
 
         if (c == '\0' || c == '|') {
             if (expect_file) {
-                error("'<' needs a file name", "");
+                error("a file name is missing", "");
                 return -1;
             }
             if (cmd->argc == 0) {
-                if (c == '\0' && count == 1 && !*input_file)
+                if (c == '\0' && count == 1 && !redir->input && !redir->output)
                     return 0;  // empty line
                 error(c == '|' || count > 1 ? "syntax error near '|'" : "a program name is missing", "");
                 return -1;
             }
             cmd->argv[cmd->argc] = 0;
-            if (c == '\0')
+            if (c == '\0') {
+                if (output_stage >= 0 && output_stage != count - 1) {
+                    error("only the last program of a pipeline can write to a file", "");
+                    return -1;
+                }
                 return count;
+            }
             if (count == STAGES_MAX) {
                 error("too many programs in one pipeline", "");
                 return -1;
@@ -111,16 +129,25 @@ static int parse(const char *line, command_t cmds[STAGES_MAX], char **input_file
             in++;
             continue;
         }
-        if (c == '>') {
-            error("writing to files is not supported yet (the filesystem is read-only)", "");
-            return -1;
-        }
-        if (c == '<') {
-            if (count > 1 || *input_file || expect_file) {
+        if (c == '>' || c == '<') {
+            if (expect_file) {
+                error("a file name is missing", "");
+                return -1;
+            }
+            if (c == '<' && (count > 1 || redir->input)) {
                 error("only the first program of a pipeline can read from a file", "");
                 return -1;
             }
-            expect_file = 1;
+            if (c == '>' && redir->output) {
+                error("only one '>' per line", "");
+                return -1;
+            }
+            if (c == '>') {
+                redir->append = in[1] == '>';
+                in += redir->append;
+                output_stage = count - 1;
+            }
+            expect_file = c == '<' ? &redir->input : &redir->output;
             in++;
             continue;
         }
@@ -144,7 +171,7 @@ static int parse(const char *line, command_t cmds[STAGES_MAX], char **input_file
         *out++ = '\0';
 
         if (expect_file) {
-            *input_file = word;
+            *expect_file = word;
             expect_file = 0;
         } else if (cmd->argc == WORDS_MAX) {
             error("too many words", "");
@@ -175,6 +202,8 @@ static void help(void)
           "Programs live in /bin (see 'ls /bin'). Also:\n"
           "  a | b        a's output is b's input (e.g. 'ls /bin | sort')\n"
           "  a < file     a reads the file (e.g. 'sort < /etc/motd')\n"
+          "  a > file     a writes the file, only in /tmp (e.g. 'ls /bin > /tmp/list')\n"
+          "  a >> file    a adds to the end of the file\n"
           "Built in:\n"
           "  exit [code]  leave the shell\n"
           "  help         show this text\n");
@@ -190,7 +219,21 @@ static void report_spawn_error(const char *name, long error_code)
         error(name, ": cannot run this program");
 }
 
-static void run(command_t cmds[], int count, const char *input_file)
+static void file_error(const char *path, long code)
+{
+    if (code == -EISDIR)
+        error(path, ": is a directory");
+    else if (code == -EROFS)
+        error(path, ": read-only (only /tmp is writable)");
+    else if (code == -ENOTDIR)
+        error(path, ": not a directory");
+    else if (code == -ENOSPC)
+        error(path, ": no space left");
+    else
+        error(path, ": no such file or directory");
+}
+
+static void run(command_t cmds[], int count, const redirect_t *redir)
 {
     long pids[STAGES_MAX];
     const char *names[STAGES_MAX];
@@ -198,17 +241,28 @@ static void run(command_t cmds[], int count, const char *input_file)
     int pgid = 0;  // the first program started leads the group
 
     int in = 0;  // stdin of the next program
-    if (input_file) {
-        long fd = open(input_file, O_RDONLY);
+    if (redir->input) {
+        long fd = open(redir->input, O_RDONLY);
         if (fd < 0) {
-            error(input_file, fd == -EISDIR ? ": is a directory" : ": no such file");
+            file_error(redir->input, fd);
             return;
         }
         in = (int)fd;
     }
+    int last_out = 1;  // stdout of the last program
+    if (redir->output) {
+        long fd = open(redir->output, O_WRONLY | O_CREAT | (redir->append ? O_APPEND : O_TRUNC));
+        if (fd < 0) {
+            file_error(redir->output, fd);
+            if (in != 0)
+                close(in);
+            return;
+        }
+        last_out = (int)fd;
+    }
 
     for (int i = 0; i < count; i++) {
-        int out = 1;
+        int out = last_out;
         int ends[2];
         if (i < count - 1) {
             if (pipe(ends) < 0) {
@@ -228,6 +282,8 @@ static void run(command_t cmds[], int count, const char *input_file)
             close(in);
         if (out != 1)
             close(out);
+        if (out == last_out)
+            last_out = 1;  // closed with it
         in = i < count - 1 ? ends[0] : 0;
 
         if (pid < 0) {
@@ -241,6 +297,8 @@ static void run(command_t cmds[], int count, const char *input_file)
     }
     if (in != 0)
         close(in);  // a pipe left over after an error
+    if (last_out != 1)
+        close(last_out);  // the pipeline stopped before its last program
 
     for (int i = 0; i < started; i++) {
         int code;
@@ -261,25 +319,28 @@ int main(void)
 {
     char line[LINE_MAX];
     command_t cmds[STAGES_MAX];
-    char *input_file;
+    redirect_t redir;
+    int interactive = isatty(0);
 
     for (;;) {
-        print("$ ");
+        if (interactive)
+            print("$ ");
         int got = read_line(line);
         if (got < 0)
             continue;  // Ctrl+C at the prompt
         if (got == 0) {
-            print("exit\n");  // Ctrl+D (end of input)
+            if (interactive)
+                print("exit\n");  // Ctrl+D
             return 0;
         }
 
-        int count = parse(line, cmds, &input_file);
+        int count = parse(line, cmds, &redir);
         if (count <= 0)
             continue;
 
         char *name = cmds[0].argv[0];
         int builtin = strcmp(name, "exit") == 0 || strcmp(name, "help") == 0;
-        if (builtin && (count > 1 || input_file)) {
+        if (builtin && (count > 1 || redir.input || redir.output)) {
             error(name, ": built-in commands cannot be part of a pipeline");
             continue;
         }
@@ -288,6 +349,6 @@ int main(void)
         if (strcmp(name, "help") == 0)
             help();
         else
-            run(cmds, count, input_file);
+            run(cmds, count, &redir);
     }
 }
