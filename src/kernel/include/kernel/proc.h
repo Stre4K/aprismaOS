@@ -17,6 +17,8 @@
 #define PROCESS_NAME_LEN 16
 #define PROCESS_MAX_FILES 16  // open files per process
 #define PROCESS_FIRST_FD 3    // 0, 1 and 2 are the console
+#define PROCESS_MAX_ARGS 32   // arguments passed to a program, argv[0] included
+#define PROCESS_MAX_ARG_BYTES 2048  // their total length with terminators
 
 struct thread;
 
@@ -46,6 +48,11 @@ typedef struct process {
 // program or memory runs out. The caller must process_wait() for it (or
 // process_release() it).
 process_t *process_spawn(const char *name);
+
+// Same, passing arguments: the program's main() gets argc and argv, with
+// argv[0] by convention its name. Fails (NULL) for more than
+// PROCESS_MAX_ARGS arguments or PROCESS_MAX_ARG_BYTES of text.
+process_t *process_spawn_args(const char *name, int argc, const char *const argv[]);
 
 // The filesystem node of the program `name` would run, or NULL
 const fs_node_t *process_find_program(const char *name);

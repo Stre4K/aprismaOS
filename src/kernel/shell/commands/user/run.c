@@ -13,11 +13,12 @@
 
 void cmd_run(int argc, char **argv) {
     if (argc < 2) {
-        printk("Usage: run <program>   (see 'programs')\n");
+        printk("Usage: run <program> [arguments...]   (see 'programs')\n");
         return;
     }
 
-    process_t *p = process_spawn(argv[1]);
+    // The program gets "<program> [arguments...]" as its argv
+    process_t *p = process_spawn_args(argv[1], argc - 1, (const char *const *)&argv[1]);
     if (p == NULL) {
         if (!fs_mounted())
             printk("run: no filesystem (boot with a ramdisk)\n");
