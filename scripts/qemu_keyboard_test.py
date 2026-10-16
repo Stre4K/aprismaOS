@@ -28,7 +28,7 @@ KEY_DELAY = 0.03  # seconds between key events
 
 # QMP qcodes for characters that are not plain lowercase letters or digits
 QCODES = {" ": "spc", "-": "minus", ".": "dot", "/": "slash", "=": "equal", ",": "comma", "'": "apostrophe"}
-SHIFTED = {'"': "apostrophe"}
+SHIFTED = {'"': "apostrophe", "|": "backslash", "<": "comma", ">": "dot"}
 
 
 class Qmp:
@@ -361,6 +361,46 @@ def sort_keeps_typed_lines_on_the_heap(vm):
 
 
 @user_shell
+def pipeline_passes_output_along(vm):
+    vm.qmp.type("ls /bin | wc\n")
+    vm.wait(r"(?m)^\d+ \d+ \d+\n\$$")
+    vm.qmp.type("cat /etc/motd|sort\n")  # no spaces needed
+    vm.wait(r"(?m)^This file was read.*\nWelcome to AprismaOS!\n\$$")
+
+
+@user_shell
+def pipeline_reads_the_keyboard_until_ctrl_d(vm):
+    vm.qmp.type("cat | sort\n")
+    vm.settle()
+    vm.qmp.type("pear\napple\n")
+    vm.settle()
+    vm.qmp.tap("ctrl", "d")  # cat ends, then sort sees the end of its input
+    vm.wait(r"(?m)^apple\npear\n\$$")
+
+
+@user_shell
+def ctrl_c_ends_every_program_of_a_pipeline(vm):
+    vm.qmp.type("yes | forever\n")  # yes soon waits for room in the pipe
+    vm.settle()
+    vm.qmp.tap("ctrl", "c")
+    vm.wait(r"\[\d+ yes\] killed: interrupted")
+    vm.wait(r"\[\d+ forever\] killed: interrupted")
+    vm.qmp.type("echo alive\n")
+    vm.wait(r"(?m)^alive$")
+
+
+@user_shell
+def ctrl_c_ends_a_program_waiting_on_an_empty_pipe(vm):
+    vm.qmp.type("forever | cat\n")  # cat waits for data that never comes
+    vm.settle()
+    vm.qmp.tap("ctrl", "c")
+    vm.wait(r"\[\d+ cat\] killed: interrupted")
+    vm.wait(r"\[\d+ forever\] killed: interrupted")
+    vm.qmp.type("echo alive\n")
+    vm.wait(r"(?m)^alive$")
+
+
+@user_shell
 def ctrl_c_at_the_user_shell_prompt_gives_a_new_prompt(vm):
     vm.qmp.type("echo bad")
     vm.qmp.tap("ctrl", "c")
@@ -431,6 +471,10 @@ SCENARIOS = [
     user_shell_runs_programs_with_arguments,
     user_shell_program_reads_the_keyboard,
     sort_keeps_typed_lines_on_the_heap,
+    pipeline_passes_output_along,
+    pipeline_reads_the_keyboard_until_ctrl_d,
+    ctrl_c_ends_every_program_of_a_pipeline,
+    ctrl_c_ends_a_program_waiting_on_an_empty_pipe,
     ctrl_c_at_the_user_shell_prompt_gives_a_new_prompt,
     ctrl_c_ends_the_program_not_the_user_shell,
     ctrl_c_in_a_nested_shell_ends_only_its_program,

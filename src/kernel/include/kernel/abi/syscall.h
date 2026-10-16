@@ -12,22 +12,38 @@
 #define SYS_SLEEP   3   // sleep(unsigned ms) -> 0
 #define SYS_YIELD   4   // yield() -> 0
 #define SYS_READ    5   // read(int fd, void *buf, size_t len) -> bytes read, 0 at end of input/file
-#define SYS_OPEN    6   // open(const char *path) -> file descriptor (files are read-only)
+#define SYS_OPEN    6   // open(const char *path) -> file descriptor (the ramdisk is read-only)
 #define SYS_CLOSE   7   // close(int fd) -> 0
-#define SYS_SPAWN   8   // spawn(const char *path, char *const argv[]) -> pid of the new child
+#define SYS_SPAWN   8   // spawn(const char *path, char *const argv[], const spawn_options_t *options) -> pid
 #define SYS_WAIT    9   // wait(int pid, int *code) -> 0, or WAIT_KILLED if it was killed
 
 // spawn: `path` is looked up in /bin unless it contains a '/'; argv is a
 // NULL-terminated array whose first entry becomes the child's argv[0]
-// (NULL argv means just { path }).
+// (NULL argv means just { path }). The child gets three of the caller's
+// descriptors as its 0, 1 and 2 and no others; NULL options pass on 0, 1
+// and 2 and start a new process group. -EBADF for a descriptor that is
+// not open, -EPERM for a group that is neither the caller's nor one of
+// its children's.
 // wait: blocks until the child `pid` ends and stores its exit code in
 // *code (if code is not NULL). Every child can be waited for once. While
 // the caller waits, Ctrl+C goes to the child.
 #define WAIT_KILLED 1   // ended by a fault or Ctrl+C rather than exit()
 
+typedef struct {
+    int fd[3];  // the caller's descriptors that become the child's 0, 1 and 2 (-1: not open)
+    int pgid;   // process group to join, 0 for a new one; Ctrl+C ends a whole group
+} spawn_options_t;
+
 #define SYS_READDIR 10  // readdir(const char *dir, size_t index, dirent_t *entry) -> 1, or 0 past the end
 
 #define SYS_BRK     11  // brk(void *end) -> the new end of the heap
+#define SYS_PIPE    12  // pipe(int fds[2]) -> 0; what is written to fds[1] can be read from fds[0]
+
+// Descriptors: 0, 1 and 2 are stdin, stdout and stderr, open and close
+// work on any of them, and open and pipe take the lowest free ones. A pipe
+// holds 4 KiB: read waits for data and returns 0 once every write end is
+// closed; write waits for room and fails with -EPIPE once every read end
+// is closed. All descriptors are closed when a process ends.
 
 // brk: moves the end of the heap, which starts right after the program
 // and may grow to USER_HEAP_MAX bytes (64 MiB). New memory is zeroed;
@@ -43,6 +59,7 @@ typedef struct {
 } dirent_t;
 
 // Errors are returned as negative values
+#define EPERM   1   // not allowed
 #define ENOENT  2   // no such file or directory
 #define EINTR   4   // interrupted (the process is being killed)
 #define E2BIG   7   // argument list too long
@@ -56,6 +73,7 @@ typedef struct {
 #define EINVAL 22   // invalid argument
 #define EMFILE 24   // too many open files
 #define ENAMETOOLONG 36  // path too long
+#define EPIPE  32   // the reading end of the pipe is closed
 #define ENOSYS 38   // unknown system call
 
 #endif // __KERNEL_ABI_SYSCALL_H__

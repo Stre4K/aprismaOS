@@ -44,9 +44,14 @@ long yield(void)
     return syscall3(SYS_YIELD, 0, 0, 0);
 }
 
-long spawn(const char *path, char *const argv[])
+long spawn(const char *path, char *const argv[], const spawn_options_t *options)
 {
-    return syscall3(SYS_SPAWN, (long)path, (long)argv, 0);
+    return syscall3(SYS_SPAWN, (long)path, (long)argv, (long)options);
+}
+
+long pipe(int fds[2])
+{
+    return syscall3(SYS_PIPE, (long)fds, 0, 0);
 }
 
 long wait(int pid, int *code)

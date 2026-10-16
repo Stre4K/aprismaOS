@@ -25,6 +25,7 @@
 #define PAGE_SIZE 4096
 
 static int next_pid = 1;
+static process_t *all_processes;  // not yet exited; changed with interrupts disabled
 
 const fs_node_t *process_find_program(const char *name)
 {
@@ -135,10 +136,41 @@ static bool arguments_fit(int argc, const char *const argv[])
 process_t *process_spawn(const char *name)
 {
     const char *argv[1] = { name };
-    return process_spawn_args(name, 1, argv);
+    return process_spawn_args(name, 1, argv, NULL);
 }
 
-process_t *process_spawn_args(const char *name, int argc, const char *const argv[])
+static void list_add(process_t *p)
+{
+    unsigned long flags = irq_save();
+    p->all_next = all_processes;
+    all_processes = p;
+    irq_restore(flags);
+}
+
+static void list_remove(process_t *p)
+{
+    unsigned long flags = irq_save();
+    for (process_t **link = &all_processes; *link; link = &(*link)->all_next) {
+        if (*link == p) {
+            *link = p->all_next;
+            break;
+        }
+    }
+    irq_restore(flags);
+}
+
+static void close_all_files(process_t *p)
+{
+    for (int fd = 0; fd < PROCESS_MAX_FDS; fd++) {
+        if (p->fds[fd]) {
+            file_put(p->fds[fd]);
+            p->fds[fd] = NULL;
+        }
+    }
+}
+
+process_t *process_spawn_args(const char *name, int argc, const char *const argv[],
+                              const process_options_t *options)
 {
     if (!arguments_fit(argc, argv))
         return NULL;
@@ -167,12 +199,27 @@ process_t *process_spawn_args(const char *name, int argc, const char *const argv
         goto fail;
     p->user_sp = push_arguments(stack_pages, argc, argv);
 
-    if (thread_create_in(p->name, process_start, p, p->space, p) == NULL)
+    for (int fd = 0; fd < 3; fd++) {
+        if (options == NULL) {
+            p->fds[fd] = file_console();
+        } else if (options->stdio[fd]) {
+            file_get(options->stdio[fd]);
+            p->fds[fd] = options->stdio[fd];
+        }
+    }
+    p->pgid = options && options->pgid ? options->pgid : p->pid;
+
+    // Listed before its thread can run (and exit, which unlists it)
+    list_add(p);
+    if (thread_create_in(p->name, process_start, p, p->space, p) == NULL) {
+        list_remove(p);
         goto fail;
+    }
 
     return p;
 
 fail:
+    close_all_files(p);
     if (p->space)
         paging_destroy_space(p->space);  // frees whatever was mapped
     kfree(p);
@@ -213,6 +260,29 @@ process_t *process_take_child(process_t *parent, int pid)
         }
     }
     return NULL;
+}
+
+void process_interrupt_group(int pgid)
+{
+    unsigned long flags = irq_save();
+    for (process_t *p = all_processes; p; p = p->all_next) {
+        if (p->pgid == pgid) {
+            p->kill_pending = true;
+            if (p->sleeping_on)
+                wait_queue_wake_all(p->sleeping_on);
+        }
+    }
+    irq_restore(flags);
+}
+
+void process_sleep_on(wait_queue_t *q)
+{
+    process_t *p = process_current();
+    if (p)
+        p->sleeping_on = q;
+    wait_queue_sleep(q);
+    if (p)
+        p->sleeping_on = NULL;
 }
 
 void process_check_kill(regs_t *regs)
@@ -261,6 +331,10 @@ void process_exit(int code)
         p->children = child->next_sibling;
         process_release(child);
     }
+
+    // Closing pipe ends lets the processes on the other side see the end
+    close_all_files(p);
+    list_remove(p);
 
     disable_interrupts();
     p->exit_code = code;

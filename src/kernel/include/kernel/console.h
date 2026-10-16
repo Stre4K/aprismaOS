@@ -9,8 +9,6 @@
 
 #define CONSOLE_LINE_MAX 128
 
-struct process;
-
 // Start the console thread, which handles the keyboard from then on
 void console_start(void);
 
@@ -27,13 +25,9 @@ void console_eof(void);        // Ctrl+D on an empty line
 void console_interrupt(void);  // Ctrl+C
 
 #ifdef CONFIG_USERMODE
-// The process Ctrl+C ends (NULL for none). The console keeps its own
-// reference while it is the foreground process.
-void console_set_foreground(struct process *p);
-
-// The foreground process with a reference taken for the caller (which
-// must process_release() it), or NULL
-struct process *console_get_foreground(void);
+// The process group Ctrl+C ends (0 for none)
+void console_set_foreground(int pgid);
+int console_get_foreground(void);
 #endif
 
 #endif // __KERNEL_CONSOLE_H__

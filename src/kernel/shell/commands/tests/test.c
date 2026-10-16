@@ -345,7 +345,7 @@ static bool heap_out_of_memory(void)
     }
 
     const char *argv[] = { "heaptest", "oom" };
-    process_t *p = process_spawn_args("heaptest", 2, argv);
+    process_t *p = process_spawn_args("heaptest", 2, argv, NULL);
     bool killed = false;
     int code = p ? process_wait_info(p, &killed) : -1000;
 
@@ -360,6 +360,29 @@ static bool heap_out_of_memory(void)
         return false;
     }
     return true;
+}
+
+// Ctrl+C must reach a process waiting on a pipe that nothing else will
+// touch: here it waits to write into a full pipe only it could read
+static bool interrupt_wakes_pipe_writer(void)
+{
+    const char *argv[] = { "pipes", "block" };
+    process_t *p = process_spawn_args("pipes", 2, argv, NULL);
+    if (p == NULL)
+        return false;
+    thread_sleep(100);  // let it fill the pipe and wait
+    process_interrupt_group(p->pgid);
+    for (int i = 0; i < 100 && !p->exited; i++)
+        thread_sleep(10);
+    if (!p->exited) {
+        printk("user test: Ctrl+C did not wake a process waiting on a pipe\n");
+        return false;  // it stays stuck; only happens when this is broken
+    }
+    bool killed;
+    process_wait_info(p, &killed);
+    if (!killed)
+        printk("user test: pipes block was not killed\n");
+    return killed;
 }
 
 static void test_user(void)
@@ -380,12 +403,12 @@ static void test_user(void)
     memset(long_arg, 'a', sizeof(long_arg) - 1);
     const char *too_long[] = { "args", long_arg };
 
-    process_t *with_args = process_spawn_args("args", 4, three);
+    process_t *with_args = process_spawn_args("args", 4, three, NULL);
     int args_code = with_args ? process_wait(with_args) : -1;
-    process_t *max_args = process_spawn_args("args", PROCESS_MAX_ARGS, many);
+    process_t *max_args = process_spawn_args("args", PROCESS_MAX_ARGS, many, NULL);
     int max_code = max_args ? process_wait(max_args) : -1;
-    process_t *over = process_spawn_args("args", PROCESS_MAX_ARGS + 1, many);
-    process_t *over_bytes = process_spawn_args("args", 2, too_long);
+    process_t *over = process_spawn_args("args", PROCESS_MAX_ARGS + 1, many, NULL);
+    process_t *over_bytes = process_spawn_args("args", 2, too_long, NULL);
     if (args_code != 4 || max_code != PROCESS_MAX_ARGS || over || over_bytes) {
         printk("user test: arguments wrong (exit %d and %d, too many %s, too long %s)\n", args_code,
                max_code, over ? "accepted" : "refused", over_bytes ? "accepted" : "refused");
@@ -398,6 +421,10 @@ static void test_user(void)
 
     // Processes starting processes: spawn, wait and readdir from user mode
     errors += !expect_exit("spawner", 0);
+
+    // Pipes, descriptors and spawn options
+    errors += !expect_exit("pipes", 0);
+    errors += !interrupt_wakes_pipe_writer();
 
     // The heap: brk and malloc, and running out of memory
     errors += !expect_exit("heaptest", 0);
@@ -458,6 +485,7 @@ static void test_user(void)
         errors += !expect_exit("spawner", 0);  // also leaves a child behind each time
     errors += !expect_exit("heaptest", 0);     // its heap pages must come back
     errors += !heap_out_of_memory();           // and those of a brk that failed halfway
+    errors += !expect_exit("pipes", 0);        // pipes and open files must be freed
     thread_sleep(50);
 
     kheap_stats_t heap_after;

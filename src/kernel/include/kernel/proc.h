@@ -9,24 +9,19 @@
 #ifdef CONFIG_USERMODE
 
 #include <kernel/arch/isr.h>
+#include <kernel/file.h>
 #include <kernel/fs.h>
+#include <kernel/sched.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #define PROCESS_NAME_LEN 16
-#define PROCESS_MAX_FILES 16  // open files per process
-#define PROCESS_FIRST_FD 3    // 0, 1 and 2 are the console
+#define PROCESS_MAX_FDS 16   // file descriptors per process, 0-2 included
 #define PROCESS_MAX_ARGS 32   // arguments passed to a program, argv[0] included
 #define PROCESS_MAX_ARG_BYTES 2048  // their total length with terminators
 
 struct thread;
-
-// A file a process has open (read-only)
-typedef struct {
-    const fs_node_t *node;     // NULL for a free slot
-    size_t offset;             // where the next read starts
-} open_file_t;
 
 typedef struct process {
     int pid;
@@ -40,12 +35,22 @@ typedef struct process {
     bool exited;
     bool killed;               // ended by a fault or Ctrl+C, not by exit()
     volatile bool kill_pending; // Ctrl+C: kill when it next returns to user mode
+    int pgid;                  // process group: Ctrl+C ends the foreground group
+    wait_queue_t *sleeping_on; // where process_sleep_on() blocked it, or NULL
     struct thread *waiter;     // thread blocked in process_wait()
     int refs;                  // its thread + the creator; freed at 0
-    open_file_t files[PROCESS_MAX_FILES];  // file descriptor PROCESS_FIRST_FD + index
+    file_t *fds[PROCESS_MAX_FDS];  // open files by descriptor (NULL: not open)
     struct process *children;  // started with the spawn system call, not yet waited for
     struct process *next_sibling;
+    struct process *all_next;  // list of processes that have not exited
 } process_t;
+
+// How to start a process. NULL options mean stdin, stdout and stderr on
+// the console, and a new process group.
+typedef struct {
+    file_t *stdio[3];  // the child's descriptors 0, 1 and 2 (NULL: not open)
+    int pgid;          // process group to join, 0 for a new one (numbered like the child)
+} process_options_t;
 
 // Start a program from the filesystem in a new process: `name` is looked
 // up in /bin unless it contains a '/'. Returns NULL if there is no such
@@ -55,8 +60,10 @@ process_t *process_spawn(const char *name);
 
 // Same, passing arguments: the program's main() gets argc and argv, with
 // argv[0] by convention its name. Fails (NULL) for more than
-// PROCESS_MAX_ARGS arguments or PROCESS_MAX_ARG_BYTES of text.
-process_t *process_spawn_args(const char *name, int argc, const char *const argv[]);
+// PROCESS_MAX_ARGS arguments or PROCESS_MAX_ARG_BYTES of text. The child
+// takes its own references to the files in `options`.
+process_t *process_spawn_args(const char *name, int argc, const char *const argv[],
+                              const process_options_t *options);
 
 // The filesystem node of the program `name` would run, or NULL
 const fs_node_t *process_find_program(const char *name);
@@ -76,6 +83,15 @@ process_t *process_take_child(process_t *parent, int pid);  // NULL if not a chi
 
 // Called before returning to user mode: ends the process if Ctrl+C asked to
 void process_check_kill(regs_t *regs);
+
+// Ctrl+C: every process in the group is killed when it next returns to
+// user mode; one waiting in process_sleep_on() is woken for that
+void process_interrupt_group(int pgid);
+
+// Block on `q` like wait_queue_sleep() (interrupts disabled), but let
+// process_interrupt_group() wake the process. The caller re-checks
+// kill_pending afterwards. Kernel threads just sleep.
+void process_sleep_on(wait_queue_t *q);
 
 // The process the current thread runs, or NULL for kernel threads
 process_t *process_current(void);

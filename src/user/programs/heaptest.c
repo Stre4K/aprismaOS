@@ -134,7 +134,7 @@ static int out_of_memory(void)
 static int run_self(const char *mode, int *code)
 {
     char *args[] = { "heaptest", (char *)mode, 0 };
-    long pid = spawn("heaptest", args);
+    long pid = spawn("heaptest", args, 0);
     return pid < 0 ? -1 : (int)wait((int)pid, code);
 }
 

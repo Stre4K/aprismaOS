@@ -18,7 +18,7 @@ void cmd_run(int argc, char **argv) {
     }
 
     // The program gets "<program> [arguments...]" as its argv
-    process_t *p = process_spawn_args(argv[1], argc - 1, (const char *const *)&argv[1]);
+    process_t *p = process_spawn_args(argv[1], argc - 1, (const char *const *)&argv[1], NULL);
     if (p == NULL) {
         if (!fs_mounted())
             printk("run: no filesystem (boot with a ramdisk)\n");
@@ -31,9 +31,9 @@ void cmd_run(int argc, char **argv) {
 
     int pid = p->pid;
     bool killed;
-    console_set_foreground(p);  // Ctrl+C now ends this program
+    console_set_foreground(p->pgid);  // Ctrl+C now ends this program
     int code = process_wait_info(p, &killed);  // p is released afterwards
-    console_set_foreground(NULL);
+    console_set_foreground(0);
     if (killed)
         printk("[%d %s] was killed\n", pid, argv[1]);
     else

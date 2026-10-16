@@ -33,7 +33,7 @@ static unsigned interrupts;     // Ctrl+C presses so far
 static wait_queue_t readers;
 
 #ifdef CONFIG_USERMODE
-static process_t *foreground;
+static int foreground;  // process group Ctrl+C ends, 0 for none
 #endif
 
 static void console_thread(void *arg) {
@@ -79,7 +79,7 @@ void console_interrupt(void) {
     interrupts++;
 #ifdef CONFIG_USERMODE
     if (foreground)
-        foreground->kill_pending = true;  // acted on when it next returns to user mode
+        process_interrupt_group(foreground);  // acted on when they next return to user mode
 #endif
     irq_restore(flags);
 
@@ -87,26 +87,12 @@ void console_interrupt(void) {
 }
 
 #ifdef CONFIG_USERMODE
-void console_set_foreground(process_t *p) {
-    if (p)
-        process_get(p);
-
-    unsigned long flags = irq_save();
-    process_t *old = foreground;
-    foreground = p;
-    irq_restore(flags);
-
-    if (old)
-        process_release(old);
+void console_set_foreground(int pgid) {
+    foreground = pgid;
 }
 
-process_t *console_get_foreground(void) {
-    unsigned long flags = irq_save();
-    process_t *p = foreground;
-    if (p)
-        process_get(p);
-    irq_restore(flags);
-    return p;
+int console_get_foreground(void) {
+    return foreground;
 }
 #endif
 
@@ -150,7 +136,11 @@ long console_read(char *buf, size_t len) {
             return -EINTR;
         }
 
+#ifdef CONFIG_USERMODE
+        process_sleep_on(&readers);
+#else
         wait_queue_sleep(&readers);
+#endif
     }
 }
 
