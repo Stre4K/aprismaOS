@@ -117,14 +117,20 @@ static void test_heap(void)
     if (!kheap_check())
         errors++;
 
-    if (after.used_blocks != before.used_blocks || after.heap_size != before.heap_size) {
+    if (after.used_blocks != before.used_blocks || after.used_bytes != before.used_bytes ||
+        after.heap_size > before.heap_size) {
         printk("heap test: memory not fully returned (%u blocks, %u KB)\n",
                (uint32_t)after.used_blocks, (uint32_t)(after.heap_size / 1024));
         errors++;
     }
 
-    if (pmm_free_pages() != pmm_before) {
-        printk("heap test: PMM leaked %u pages\n", pmm_before - pmm_free_pages());
+    // The heap may end up smaller than it started (a free tail left by
+    // earlier work can be trimmed now), but every page has to add up
+    uint32_t heap_pages_before = (uint32_t)(before.heap_size / 4096);
+    uint32_t heap_pages_after = (uint32_t)(after.heap_size / 4096);
+    if (pmm_free_pages() + heap_pages_after != pmm_before + heap_pages_before) {
+        printk("heap test: PMM leaked %d pages\n",
+               (int)(pmm_before + heap_pages_before) - (int)(pmm_free_pages() + heap_pages_after));
         errors++;
     }
 
