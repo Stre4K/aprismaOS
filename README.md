@@ -290,6 +290,12 @@ Both architectures share `build/AprismaOS/sysroot`, so building one replaces the
 ```sh
 ./aprisma.sh --clean
 ```
+
+- **Editor support** (clangd): write `compile_commands.json` with the flags every file is built
+  with (also done by `-d`):
+```sh
+./aprisma.sh --gen-compile-db
+```
 </details>
 
 <!--
@@ -367,7 +373,7 @@ To build AprismaOS, you need the following:
 - **Xorriso** – The ISO creation engine used by `grub-mkrescue`.
 - **GNU Make** – Version **4.0 or later**.
 - **QEMU** – _(Optional)_ For running and testing the operating system.
-- **Python 3** – _(Optional)_ For the QEMU tests.
+- **Python 3** – _(Optional)_ For the QEMU tests and `--gen-compile-db`.
 </details>
 
 
