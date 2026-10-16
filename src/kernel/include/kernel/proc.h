@@ -41,6 +41,8 @@ typedef struct process {
     struct thread *waiter;     // thread blocked in process_wait()
     int refs;                  // its thread + the creator; freed at 0
     open_file_t files[PROCESS_MAX_FILES];  // file descriptor PROCESS_FIRST_FD + index
+    struct process *children;  // started with the spawn system call, not yet waited for
+    struct process *next_sibling;
 } process_t;
 
 // Start a program from the filesystem in a new process: `name` is looked
@@ -63,6 +65,12 @@ int process_wait(process_t *p);
 int process_wait_info(process_t *p, bool *killed);
 void process_release(process_t *p);
 void process_get(process_t *p);  // take another reference
+
+// Children of a process (the spawn and wait system calls). Only the
+// parent's own thread touches its list, which holds the creator's
+// reference to each child until the parent waits for it or exits.
+void process_add_child(process_t *parent, process_t *child);
+process_t *process_take_child(process_t *parent, int pid);  // NULL if not a child
 
 // Called before returning to user mode: ends the process if Ctrl+C asked to
 void process_check_kill(regs_t *regs);

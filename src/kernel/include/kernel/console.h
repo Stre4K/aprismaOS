@@ -17,7 +17,8 @@ void console_start(void);
 // Read input, a line at a time: blocks until a whole line was entered,
 // then copies up to `len` bytes of it including the '\n' (the rest of a
 // longer line stays for the next read). Returns the number of bytes, 0 at
-// end of input (Ctrl+D) or -EINTR if the calling process is being killed.
+// end of input (Ctrl+D), or -EINTR if the calling process is being killed
+// or Ctrl+C was pressed while it waited.
 long console_read(char *buf, size_t len);
 
 // From the line editor
@@ -29,6 +30,10 @@ void console_interrupt(void);  // Ctrl+C
 // The process Ctrl+C ends (NULL for none). The console keeps its own
 // reference while it is the foreground process.
 void console_set_foreground(struct process *p);
+
+// The foreground process with a reference taken for the caller (which
+// must process_release() it), or NULL
+struct process *console_get_foreground(void);
 #endif
 
 #endif // __KERNEL_CONSOLE_H__

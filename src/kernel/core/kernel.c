@@ -23,8 +23,27 @@
 #include <kernel/console.h>
 #ifdef CONFIG_USERMODE
 #include <kernel/arch/fpu.h>
+#include <kernel/proc.h>
 #endif
 #include <kernel/shell/shell.h>
+
+#ifdef CONFIG_USERMODE
+// Run the user-space shell (/bin/sh from the ramdisk) until it exits; the
+// kernel shell takes over after that
+static void run_user_shell(void) {
+    if (process_find_program("sh") == NULL)
+        return;  // no ramdisk, or no shell in it
+
+    printk("[SHELL] Starting /bin/sh (type 'exit' for the kernel shell)\n");
+    process_t *sh = process_spawn("sh");
+    if (sh == NULL) {
+        printk("[SHELL] Cannot start /bin/sh\n");
+        return;
+    }
+    int code = process_wait(sh);
+    printk("[SHELL] /bin/sh exited with code %d\n", code);
+}
+#endif
 
 // mb_info_phys is the physical address the bootloader passed in EBX
 void kernel_main(uint32_t magic, uintptr_t mb_info_phys) {
@@ -114,6 +133,11 @@ void kernel_main(uint32_t magic, uintptr_t mb_info_phys) {
     // The console thread handles the keyboard and line editing; this thread
     // becomes the shell, running one entered line at a time
     console_start();
+
+#ifdef CONFIG_USERMODE
+    run_user_shell();
+#endif
+    printk("[SHELL] Kernel shell ready, type 'help' for commands\n");
 
     char line[CONSOLE_LINE_MAX + 1];
     while (1) {
