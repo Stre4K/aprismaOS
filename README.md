@@ -276,9 +276,9 @@ The `--build` option replaces the old `build.sh`:
 ./aprisma.sh --build kernel
 ```
 
-- **Choose the architecture** (32-bit `i686-elf-gcc` is the default):
+- **Choose the architecture** (64-bit `x86_64-elf-gcc` is the default; this builds 32-bit):
 ```sh
-./aprisma.sh --compiler x86_64-elf-gcc --build iso
+./aprisma.sh --compiler i686-elf-gcc --build iso
 ```
 Both architectures share `build/AprismaOS/sysroot`, so building one replaces the other's kernel.
 
@@ -315,8 +315,8 @@ Specify a custom path for kernel or ISO:
 ./aprisma.sh --run kernel --run-path /path/to/aprisma.kernel
 ```
 
-Add `--compiler x86_64-elf-gcc` to run the 64-bit build. The ramdisk (`initrd.tar`) is built
-with the kernel and loaded automatically.
+Add `--compiler i686-elf-gcc` to build and run the 32-bit system instead. The ramdisk
+(`initrd.tar`) is built with the kernel and loaded automatically.
 
 > **Note:** For more help, use the `--help` or `-h` flags with the `aprisma.sh` command.
 </details>
@@ -332,14 +332,15 @@ make -C tests/unit
 
 QEMU tests boot a built kernel or ISO, read the screen and type into it (Python 3):
 ```sh
-./aprisma.sh --compiler x86_64-elf-gcc --build kernel
+./aprisma.sh --build kernel
 python3 scripts/qemu_boot_test.py --arch x86_64 --objcopy x86_64-elf-objcopy \
     --kernel build/AprismaOS/sysroot/boot/aprisma.kernel --run "test user" "passed"
 python3 scripts/qemu_keyboard_test.py --arch x86_64 --objcopy x86_64-elf-objcopy \
     --kernel build/AprismaOS/sysroot/boot/aprisma.kernel
 ```
-Use `--arch i386` and `i686-elf-objcopy` for the 32-bit build. CI runs all of these for both
-architectures; see `.github/workflows/build.yml` for the full set.
+For the 32-bit system, build with `--compiler i686-elf-gcc` and test with `--arch i386` and
+`i686-elf-objcopy`. CI runs all of these for both architectures; see
+`.github/workflows/build.yml` for the full set.
 </details>
 
 
@@ -486,10 +487,17 @@ i686-elf-ld --version
 
 #### Building AprismaOS
 
-Once the toolchain is installed, you can build AprismaOS:
+Once the toolchain is installed, you can build AprismaOS (64-bit by default, which needs
+the x86_64-elf compiler from step 3):
 
 ```bash
 sh aprisma.sh --build iso
+```
+
+With only the i686-elf compiler, build the 32-bit system:
+
+```bash
+sh aprisma.sh --compiler i686-elf-gcc --build iso
 ```
 
 #### References

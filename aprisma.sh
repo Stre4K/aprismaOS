@@ -11,7 +11,7 @@ Usage: $0 [OPTIONS]
 
 Options:
   -d,  --default             Use default build
-  --compiler COMPILER        Select cross-compiler (i686-elf-gcc or x86_64-elf-gcc, default: i686-elf-gcc)
+  --compiler COMPILER        Select cross-compiler (x86_64-elf-gcc or i686-elf-gcc, default: x86_64-elf-gcc)
   --kernel KERNEL_PATH       Kernel path for ISO (default: build/AprismaOS/sysroot/boot/aprisma.kernel)
   --output ISO_PATH          Output ISO filename (default: aprisma.iso)
   --homebrew-grub            Use homebrew GRUB instead of system default (REDACTED)
@@ -30,8 +30,9 @@ EOF
 # ============================
 # Defaults
 # ============================
-DEBUGGER=i686-elf-gdb
-COMPILER=i686-elf-gcc
+# 64-bit by default: user mode and the shell only exist there so far
+DEBUGGER=x86_64-elf-gdb
+COMPILER=x86_64-elf-gcc
 #ROOTDIR=$(pwd)                   # top-level project directory
 ROOTDIR="$(cd "$(dirname "$0")" && pwd)"
 SYSROOT=$ROOTDIR/build/AprismaOS/sysroot
