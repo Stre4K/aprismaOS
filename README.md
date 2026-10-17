@@ -57,12 +57,14 @@ What works today (both architectures unless noted):
   x86_64 one address space per process with the kernel half shared.
 - **Scheduling**: preemptive round-robin kernel threads with sleeping and wait queues.
 - **Drivers**: VGA text mode with scrollback, PS/2 keyboard with line editing, the PIT timer,
-  the CMOS real-time clock (the date and time, UTC; `date` in both shells), and a serial port
-  that mirrors all console output (COM1).
-- **Filesystem**: one tree in memory. The ramdisk (a tar archive the bootloader loads next to
-  the kernel) fills it at boot with `/bin` for programs and files like `/etc/motd`, read-only;
-  `/tmp` is writable (files up to 4 MiB, 16 MiB in all, gone after a reboot). Files keep the
-  time of their last change (`ls -l`).
+  the CMOS real-time clock (the date and time, UTC; `date` in both shells), an ATA (IDE) disk
+  driver (PIO), and a serial port that mirrors all console output (COM1).
+- **Filesystem**: a VFS: one tree of directories with mount points, where each filesystem
+  keeps the contents. The ramdisk (a tar archive the bootloader loads next to the kernel)
+  fills the root at boot with `/bin` for programs and files like `/etc/motd`, read-only;
+  `/tmp` is writable, in memory (files up to 4 MiB, 16 MiB in all, gone after a reboot). A
+  FAT16 or FAT32 filesystem on the first IDE disk is mounted at `/disk` (read-only so far,
+  long file names included). Files keep the time of their last change (`ls -l`).
 - **User mode** (x86_64): programs run in ring 3 and use system calls (`int 0x80`) for
   file descriptors (the console, files and pipes), files and directories (create, write,
   seek, rename, remove, `stat`), a current directory, starting, waiting for and killing
@@ -101,6 +103,8 @@ $ jobs
 $ kill %1
 $ date
 $ ls -l /tmp
+$ ls -l /disk             (the FAT32 disk image)
+$ cat /disk/README.txt
 ```
 
 Type a program's name and its arguments; `a | b` sends a's output to b, `a < file` lets a
@@ -180,7 +184,7 @@ AprismaOS is a work in progress, with several planned features and enhancements.
   - Introduce process control and basic scheduling (round-robin).
 
 - [ ] **Filesystem & Storage**
-  - [ ] Implement a virtual filesystem (VFS) layer.
+  - [X] Implement a virtual filesystem (VFS) layer.
   - [X] Support basic file reading and writing (in memory: the ramdisk is read-only, `/tmp` writable).
 
 ---
@@ -205,8 +209,8 @@ AprismaOS is a work in progress, with several planned features and enhancements.
   - Implement context switching and scheduling.
 
 - [ ] **Filesystem Support**
-  - Read and write files using **Ext2/Ext4**.
-  - Introduce a filesystem driver for real storage support.
+  - [ ] Read and write files using **Ext2/Ext4**.
+  - [X] Introduce a filesystem driver for real storage support (FAT16/FAT32 on an IDE disk, reading).
 
 - [ ] **Interrupts & Hardware**
   - [X] Improve interrupt handling (exceptions, IRQs).
@@ -337,6 +341,9 @@ Run the kernel directly in QEMU:
 ```sh
 ./aprisma.sh --run kernel
 ```
+Both attach `build/AprismaOS/sysroot/boot/disk.img` as the first IDE disk (mounted at
+`/disk`). The build makes it from `src/disk/` with `scripts/make_disk.sh` when dosfstools
+and mtools are installed.
 Specify a custom path for kernel or ISO:
 ```sh
 ./aprisma.sh --run iso --run-path /path/to/aprisma.iso
@@ -367,8 +374,9 @@ python3 scripts/qemu_keyboard_test.py --arch x86_64 --objcopy x86_64-elf-objcopy
     --kernel build/AprismaOS/sysroot/boot/aprisma.kernel
 ```
 For the 32-bit system, build with `--compiler i686-elf-gcc` and test with `--arch i386` and
-`i686-elf-objcopy`. CI runs all of these for both architectures; see
-`.github/workflows/build.yml` for the full set.
+`i686-elf-objcopy`. The tests attach `disk.img` next to the kernel if it is there (`--disk`
+and `--no-disk` choose). The FAT unit tests make their images with dosfstools and mtools. CI
+runs all of these for both architectures; see `.github/workflows/build.yml` for the full set.
 </details>
 
 
@@ -392,6 +400,7 @@ To build AprismaOS, you need the following:
 - **GNU Make** – Version **4.0 or later**.
 - **QEMU** – _(Optional)_ For running and testing the operating system.
 - **Python 3** – _(Optional)_ For the QEMU tests and `--gen-compile-db`.
+- **dosfstools and mtools** – _(Optional)_ For the FAT32 disk image and the FAT unit tests.
 </details>
 
 
@@ -428,7 +437,7 @@ More detailed instructions can be found in the [Docker README](docker/README.md)
 It is recommended to install all dependencies using [**Homebrew**](https://brew.sh/).
 
 ```sh
-brew install make xorriso qemu i686-elf-binutils i686-elf-gcc i686-elf-grub x86_64-elf-binutils x86_64-elf-gcc
+brew install make xorriso qemu i686-elf-binutils i686-elf-gcc i686-elf-grub x86_64-elf-binutils x86_64-elf-gcc dosfstools mtools
 ```
 
 > **Note for MacOS**: To build the ISO, you need to use the `--homebrew-grub` flag with the `aprisma.sh` command.
@@ -452,7 +461,7 @@ Update package lists and install essential packages:
 
 ```bash
 sudo apt update
-sudo apt install -y build-essential xorriso qemu grub-pc-bin
+sudo apt install -y build-essential xorriso qemu grub-pc-bin dosfstools mtools
 ```
 
 > **Note:** `i686-elf-gcc` and `i686-elf-binutils` are not always available via standard apt repositories. You can either install via a PPA or prebuilt toolchain, or build a custom cross-compiler.
