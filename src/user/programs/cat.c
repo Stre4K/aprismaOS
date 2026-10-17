@@ -20,9 +20,9 @@ int main(int argc, char **argv)
     for (int i = 1; i < argc; i++) {
         long fd = open(argv[i], O_RDONLY);
         if (fd < 0) {
-            print("cat: ");
-            print(argv[i]);
-            print(fd == -EISDIR ? ": is a directory\n" : ": no such file\n");
+            eprint("cat: ");
+            eprint(argv[i]);
+            eprint(fd == -EISDIR ? ": is a directory\n" : ": no such file\n");
             failed = 1;
             continue;
         }

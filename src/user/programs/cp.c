@@ -4,16 +4,16 @@
 
 static void fail(const char *what, const char *path)
 {
-    print("cp: ");
-    print(path);
-    print(what);
-    print("\n");
+    eprint("cp: ");
+    eprint(path);
+    eprint(what);
+    eprint("\n");
 }
 
 int main(int argc, char **argv)
 {
     if (argc != 3) {
-        print("usage: cp <file> <copy or directory>\n");
+        eprint("usage: cp <file> <copy or directory>\n");
         return 1;
     }
     const char *from = argv[1];

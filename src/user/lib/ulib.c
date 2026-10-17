@@ -84,6 +84,26 @@ long fstat(int fd, stat_t *st)
     return syscall3(SYS_FSTAT, fd, (long)st, 0);
 }
 
+long lseek(int fd, long offset, int whence)
+{
+    return syscall3(SYS_LSEEK, fd, offset, whence);
+}
+
+long rename(const char *from, const char *to)
+{
+    return syscall3(SYS_RENAME, (long)from, (long)to, 0);
+}
+
+long chdir(const char *path)
+{
+    return syscall3(SYS_CHDIR, (long)path, 0, 0);
+}
+
+long getcwd(char *buf, size_t size)
+{
+    return syscall3(SYS_GETCWD, (long)buf, (long)size, 0);
+}
+
 int isatty(int fd)
 {
     stat_t st;
@@ -154,7 +174,12 @@ void print(const char *s)
     write(1, s, strlen(s));
 }
 
-void print_int(long value)
+void eprint(const char *s)
+{
+    write(2, s, strlen(s));
+}
+
+static void write_int(int fd, long value)
 {
     char buf[24];
     int i = sizeof(buf);
@@ -167,5 +192,15 @@ void print_int(long value)
     if (value < 0)
         buf[--i] = '-';
 
-    write(1, buf + i, sizeof(buf) - i);
+    write(fd, buf + i, sizeof(buf) - i);
+}
+
+void print_int(long value)
+{
+    write_int(1, value);
+}
+
+void eprint_int(long value)
+{
+    write_int(2, value);
 }

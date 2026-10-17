@@ -1,4 +1,4 @@
-// ls: list directories (the root directory without arguments). For a file
+// ls: list directories (the current directory without arguments). For a file
 // it prints the name and size, like the kernel shell's ls.
 #include "ulib.h"
 
@@ -37,9 +37,9 @@ static int list(const char *dir, int headers)
         return show_file(dir);
     }
     if (result < 0) {
-        print("ls: ");
-        print(dir);
-        print(": no such file or directory\n");
+        eprint("ls: ");
+        eprint(dir);
+        eprint(": no such file or directory\n");
         return 1;
     }
 
@@ -59,7 +59,7 @@ static int list(const char *dir, int headers)
 int main(int argc, char **argv)
 {
     if (argc < 2)
-        return list("/", 0);
+        return list(".", 0);
 
     int failed = 0;
     for (int i = 1; i < argc; i++)
