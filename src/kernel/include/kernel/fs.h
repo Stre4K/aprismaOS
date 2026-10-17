@@ -6,10 +6,11 @@
 // contents in a kernel heap buffer that grows as they are written. Works
 // on every architecture.
 //
-// Paths are absolute ("/etc/motd"); a path without a leading '/' starts at
-// the root too, since there is no current directory. Empty components,
-// "." and ".." are understood. Errors are the negative codes from
-// <kernel/abi/syscall.h>.
+// Paths here are absolute ("/etc/motd"; one without a leading '/' starts
+// at the root too). Processes have a current directory: the system calls
+// turn their paths into absolute ones with fs_path_join() first. Empty
+// components, "." and ".." are understood. Errors are the negative codes
+// from <kernel/abi/syscall.h>.
 //
 // Every function here takes the filesystem lock itself. Code that reads a
 // node's fields or data directly (e.g. loading a program) holds it with
@@ -92,6 +93,16 @@ int fs_remove(const char *path, bool is_dir);
 long fs_read(fs_node_t *node, size_t offset, void *buf, size_t len);
 long fs_write(fs_node_t *node, size_t offset, const void *buf, size_t len);
 int fs_truncate(fs_node_t *node, size_t size);
+
+// Move or rename: `to` names the new place. A file may replace a file
+// there (which is removed); otherwise -EEXIST. -EROFS unless both places
+// are writable, -EINVAL to move a directory into itself.
+int fs_rename(const char *from, const char *to);
+
+// The absolute, normalized form of `path` (relative to `cwd`, itself
+// absolute and normalized): "//", "." and ".." are resolved by name, so
+// "/tmp/a/../b" becomes "/tmp/b". 0 or -ENAMETOOLONG.
+int fs_path_join(const char *cwd, const char *path, char out[FS_PATH_MAX]);
 
 // Entry number `index` of a directory (in the order they were made), or NULL
 fs_node_t *fs_child(fs_node_t *dir, size_t index);

@@ -37,6 +37,10 @@ long rmdir(const char *path);
 long stat(const char *path, stat_t *st);
 long fstat(int fd, stat_t *st);
 int isatty(int fd);  // 1 if fd is the console (keyboard and screen)
+long lseek(int fd, long offset, int whence);  // SEEK_SET, SEEK_CUR, SEEK_END
+long rename(const char *from, const char *to);
+long chdir(const char *path);
+long getcwd(char *buf, size_t size);
 long wait(int pid, int *code);
 long readdir(const char *dir, size_t index, dirent_t *entry);
 long brk(void *end);           // new end of the heap, or -ENOMEM
@@ -62,6 +66,8 @@ void *memcpy(void *dst, const void *src, size_t n);
 size_t strlen(const char *s);
 int strcmp(const char *a, const char *b);
 void print(const char *s);
+void eprint(const char *s);  // to stderr: error messages
 void print_int(long value);
+void eprint_int(long value);
 
 #endif

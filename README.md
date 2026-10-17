@@ -63,12 +63,13 @@ What works today (both architectures unless noted):
   `/tmp` is writable (files up to 4 MiB, 16 MiB in all, gone after a reboot).
 - **User mode** (x86_64): programs run in ring 3 and use system calls (`int 0x80`) for
   file descriptors (the console, files and pipes), files and directories (create, write,
-  remove, `stat`), starting and waiting for other programs, and growing their heap (`brk`). Faults end the program,
+  seek, rename, remove, `stat`), a current directory, starting and waiting for other
+  programs, and growing their heap (`brk`). Faults end the program,
   not the kernel; Ctrl+C ends the foreground process group. x87/SSE registers are saved
   for each process.
 - **User space** (x86_64): a C runtime with `malloc`/`free`, a shell (`/bin/sh`) with
-  pipelines and redirection (`<`, `>`, `>>`), and programs such as `ls`, `cat`, `echo`, `sort`,
-  `wc`, `yes`, `cp`, `mkdir`, `rm` and `rmdir`.
+  `cd`, pipelines and redirection (`<`, `>`, `>>`, `2>`), and programs such as `ls`, `cat`,
+  `echo`, `sort`, `wc`, `yes`, `cp`, `mv`, `mkdir`, `rm` and `rmdir`.
 - **Kernel shell**: built-in commands for debugging (`help` lists them), also reachable when
   there is no ramdisk.
 - **Tests**: host unit tests for libc and kernel helpers, and QEMU tests that boot the system
@@ -89,10 +90,15 @@ $ ls /bin | sort | wc
 $ ls /bin > /tmp/list
 $ sort < /tmp/list
 $ cat > /tmp/notes        (type lines, then Ctrl+D)
+$ cd /tmp
+$ mv notes old-notes
+$ cat missing 2> errors
 ```
 
 Type a program's name and its arguments; `a | b` sends a's output to b, `a < file` lets a
-read a file, and `a > file` (or `>>` to add to the end) writes one. Only `/tmp` is writable. `help` lists the built-in commands. Ctrl+C ends the running programs (or
+read a file, `a > file` (or `>>` to add to the end) writes one, and `2>` does the same for
+error messages. Only `/tmp` is writable. `cd` changes the current directory, which paths
+not starting with `/` are relative to; `pwd` shows it. `help` lists the built-in commands. Ctrl+C ends the running programs (or
 starts a new line at the prompt), Ctrl+D ends input, and `exit` (or Ctrl+D at the prompt)
 leaves for the kernel shell. There, `help` lists the kernel's own
 commands, `run <program> [arguments...]` starts a program and `test` runs self-tests

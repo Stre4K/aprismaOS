@@ -85,9 +85,9 @@ int main(int argc, char **argv)
         for (int i = 1; i < argc && ok; i++) {
             long fd = open(argv[i], O_RDONLY);
             if (fd < 0) {
-                print("sort: ");
-                print(argv[i]);
-                print(": cannot open\n");
+                eprint("sort: ");
+                eprint(argv[i]);
+                eprint(": cannot open\n");
                 return 1;
             }
             ok = read_lines(fd);
@@ -97,7 +97,7 @@ int main(int argc, char **argv)
 
     char **scratch = malloc((count ? count : 1) * sizeof(*scratch));
     if (!ok || scratch == 0) {
-        print("sort: out of memory\n");
+        eprint("sort: out of memory\n");
         return 2;
     }
     sort_lines(lines, scratch, count);

@@ -40,16 +40,18 @@ typedef struct process {
     struct thread *waiter;     // thread blocked in process_wait()
     int refs;                  // its thread + the creator; freed at 0
     file_t *fds[PROCESS_MAX_FDS];  // open files by descriptor (NULL: not open)
+    char cwd[FS_PATH_MAX];     // current directory, absolute and normalized
     struct process *children;  // started with the spawn system call, not yet waited for
     struct process *next_sibling;
     struct process *all_next;  // list of processes that have not exited
 } process_t;
 
 // How to start a process. NULL options mean stdin, stdout and stderr on
-// the console, and a new process group.
+// the console, a new process group and the root as current directory.
 typedef struct {
     file_t *stdio[3];  // the child's descriptors 0, 1 and 2 (NULL: not open)
     int pgid;          // process group to join, 0 for a new one (numbered like the child)
+    const char *cwd;   // current directory to start in (NULL: the root)
 } process_options_t;
 
 // Start a program from the filesystem in a new process: `name` is looked

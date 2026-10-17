@@ -448,6 +448,111 @@ int fs_truncate(fs_node_t *node, size_t size)
     return r;
 }
 
+int fs_rename(const char *from, const char *to)
+{
+    fs_lock();
+    fs_node_t *node, *dir;
+    char name[FS_NAME_MAX];
+    int r = walk(from, &node, NULL);
+    if (r == 0 && node == root)
+        r = -EINVAL;
+    if (r == 0)
+        r = walk(to, &dir, name);
+    if (r == 0 && (!node->writable || !node->parent->writable || !dir->writable))
+        r = -EROFS;
+
+    fs_node_t *existing = r == 0 ? find_child(dir, name) : NULL;
+    if (r == 0 && existing == node) {
+        fs_unlock();
+        return 0;  // already there
+    }
+    if (r == 0 && node->is_dir) {
+        // Not into itself or one of its own subdirectories
+        for (fs_node_t *d = dir; r == 0; d = d->parent) {
+            if (d == node)
+                r = -EINVAL;
+            if (d == root)
+                break;
+        }
+    }
+    if (r == 0 && existing && (existing->is_dir || node->is_dir))
+        r = -EEXIST;
+
+    if (r == 0) {
+        if (existing) {
+            unlink_node(existing);  // replaced, like fs_remove()
+            if (existing->open_count > 0)
+                existing->removed = true;
+            else
+                free_node(existing);
+        }
+        unlink_node(node);
+        strcpy(node->name, name);
+        node->parent = dir;
+        fs_node_t **link = &dir->children;
+        while (*link)
+            link = &(*link)->next;
+        *link = node;
+    }
+    fs_unlock();
+    return r;
+}
+
+// Add one component to an absolute path being built in out[0..*len)
+static int join_component(char *out, size_t *len, const char *name, size_t n)
+{
+    if (n == 0 || (n == 1 && name[0] == '.'))
+        return 0;
+    if (n == 2 && name[0] == '.' && name[1] == '.') {
+        while (*len > 1 && out[*len - 1] != '/')
+            (*len)--;
+        if (*len > 1)
+            (*len)--;  // the '/' before the removed name
+        out[*len] = '\0';
+        return 0;
+    }
+    if (n >= FS_NAME_MAX)
+        return -ENAMETOOLONG;
+    size_t slash = *len > 1;
+    if (*len + slash + n >= FS_PATH_MAX)
+        return -ENAMETOOLONG;
+    if (slash)
+        out[(*len)++] = '/';
+    memcpy(out + *len, name, n);
+    *len += n;
+    out[*len] = '\0';
+    return 0;
+}
+
+static int join_all(char *out, size_t *len, const char *path)
+{
+    while (*path) {
+        while (*path == '/')
+            path++;
+        size_t n = 0;
+        while (path[n] && path[n] != '/')
+            n++;
+        int r = join_component(out, len, path, n);
+        if (r < 0)
+            return r;
+        path += n;
+    }
+    return 0;
+}
+
+int fs_path_join(const char *cwd, const char *path, char out[FS_PATH_MAX])
+{
+    size_t len = 1;
+    out[0] = '/';
+    out[1] = '\0';
+    int r = 0;
+    if (path[0] != '/')
+        r = join_all(out, &len, cwd);
+    if (r == 0)
+        r = join_all(out, &len, path);
+    return r;
+}
+
 fs_node_t *fs_child(fs_node_t *dir, size_t index)
 {
     fs_lock();

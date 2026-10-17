@@ -28,7 +28,7 @@ KEY_DELAY = 0.03  # seconds between key events
 
 # QMP qcodes for characters that are not plain lowercase letters or digits
 QCODES = {" ": "spc", "-": "minus", ".": "dot", "/": "slash", "=": "equal", ",": "comma", "'": "apostrophe"}
-SHIFTED = {'"': "apostrophe", "|": "backslash", "<": "comma", ">": "dot"}
+SHIFTED = {'"': "apostrophe", "|": "backslash", "<": "comma", ">": "dot", "&": "7"}
 
 
 class Qmp:
@@ -424,6 +424,23 @@ def a_script_runs_without_prompts(vm):
 
 
 @user_shell
+def cd_and_relative_paths(vm):
+    vm.qmp.type("cd /tmp\n")
+    vm.qmp.type("pwd\n")
+    vm.wait(r"(?m)^/tmp$")
+    vm.qmp.type("echo note > a\n")
+    vm.qmp.type("mv a b\n")
+    vm.qmp.type("ls\n")
+    vm.wait(r"(?m)^\$ ls\nb +5 bytes\n\$$")
+    vm.qmp.type("cat missing 2> errors\n")
+    vm.qmp.type("cat errors\n")
+    vm.wait(r"(?m)^\$ cat errors\ncat: missing: no such file\n\$$")
+    vm.qmp.type("cd ..\n")
+    vm.qmp.type("cat tmp/b\n")
+    vm.wait(r"(?m)^note$")
+
+
+@user_shell
 def ctrl_c_at_the_user_shell_prompt_gives_a_new_prompt(vm):
     vm.qmp.type("echo bad")
     vm.qmp.tap("ctrl", "c")
@@ -500,6 +517,7 @@ SCENARIOS = [
     ctrl_c_ends_a_program_waiting_on_an_empty_pipe,
     typed_lines_go_into_a_file,
     a_script_runs_without_prompts,
+    cd_and_relative_paths,
     ctrl_c_at_the_user_shell_prompt_gives_a_new_prompt,
     ctrl_c_ends_the_program_not_the_user_shell,
     ctrl_c_in_a_nested_shell_ends_only_its_program,

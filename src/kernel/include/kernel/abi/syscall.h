@@ -45,6 +45,22 @@ typedef struct {
 #define SYS_STAT    16  // stat(const char *path, stat_t *st) -> 0
 #define SYS_FSTAT   17  // fstat(int fd, stat_t *st) -> 0
 #define SYS_DUP2    18  // dup2(int fd, int new_fd) -> new_fd, now the same open file as fd
+#define SYS_LSEEK   19  // lseek(int fd, long offset, int whence) -> the new position
+#define SYS_RENAME  20  // rename(const char *from, const char *to) -> 0
+#define SYS_CHDIR   21  // chdir(const char *path) -> 0
+#define SYS_GETCWD  22  // getcwd(char *buf, size_t size) -> length of the path
+
+// Every path given to a system call that does not start with '/' is
+// relative to the process's current directory (chdir; children start in
+// their parent's). getcwd fails with -ERANGE if the buffer is too small.
+// rename moves a file or directory; it may replace a file, nothing else.
+
+// lseek: from the start, the current position or the end of a file
+// (positions past the end are fine; a write there fills the gap with
+// zeros). -ESPIPE for the console and pipes, -EINVAL below 0.
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
 
 // open flags. The ramdisk is read-only; /tmp is writable. O_CREAT makes a
 // missing file, O_TRUNC empties it, O_APPEND writes at the end every time.
@@ -103,9 +119,11 @@ typedef struct {
 #define EMFILE 24   // too many open files
 #define EFBIG  27   // file too large
 #define ENOSPC 28   // no space left (for writable files)
+#define ESPIPE 29   // cannot seek (the console, pipes)
 #define EROFS  30   // read-only (the ramdisk)
 #define ENAMETOOLONG 36  // path too long
 #define EPIPE  32   // the reading end of the pipe is closed
+#define ERANGE 34   // result does not fit the buffer
 #define ENOSYS 38   // unknown system call
 #define ENOTEMPTY 39  // directory not empty
 

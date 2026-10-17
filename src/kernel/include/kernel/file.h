@@ -61,6 +61,9 @@ void file_put(file_t *f);  // drop one; the last frees the file
 long file_read(file_t *f, void *buf, size_t len);
 long file_write(file_t *f, const void *buf, size_t len);
 
+// Move a file's position (SEEK_SET, SEEK_CUR, SEEK_END); returns it
+long file_seek(file_t *f, long offset, int whence);
+
 // What fstat reports about an open file
 void file_stat(file_t *f, stat_t *st);
 
