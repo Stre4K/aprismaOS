@@ -21,8 +21,8 @@ import tempfile
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from qemu_boot_test import (BOOT_DONE, KERNEL_SHELL, Monitor, TestFailure, find_initrd,  # noqa: E402
-                            read_screen, wait_for, wait_for_shell)
+from qemu_boot_test import (BOOT_DONE, KERNEL_SHELL, Monitor, TestFailure, disk_args,  # noqa: E402
+                            find_disk, find_initrd, read_screen, wait_for, wait_for_shell)
 
 KEY_DELAY = 0.03  # seconds between key events
 
@@ -111,7 +111,7 @@ class Vm:
                 os.unlink(path)
 
         self.qemu = subprocess.Popen(
-            [f"qemu-system-{args.arch}", "-kernel", args.boot_kernel, *args.initrd_args, "-m", "128M",
+            [f"qemu-system-{args.arch}", "-kernel", args.boot_kernel, *args.initrd_args, *args.disk_args, "-m", "128M",
              "-display", "none", "-no-reboot",
              "-monitor", f"unix:{monitor_path},server,nowait",
              "-qmp", f"unix:{qmp_path},server,nowait"],
@@ -591,6 +591,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="aprisma-kbd-") as tmp:
         initrd = find_initrd(args.kernel, None, False)
         args.initrd_args = ["-initrd", initrd] if initrd else []
+        args.disk_args = disk_args(find_disk(args.kernel, None, False))
         args.boot_kernel = os.path.abspath(args.kernel)
         if args.arch == "x86_64":
             # QEMU's built-in Multiboot loader only accepts 32-bit ELF files
