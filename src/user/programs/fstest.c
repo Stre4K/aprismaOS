@@ -277,6 +277,33 @@ static void check_rename(void)
     rmdir("/tmp/rd2");
 }
 
+static void check_times(void)
+{
+    long now = time();
+    long ms = time_ms();
+    check(now > 946684800, "the clock is past 2000");
+    check(ms / 1000 >= now && ms / 1000 <= now + 1, "time and time_ms agree");
+    sleep(50);
+    check(time_ms() >= ms + 40, "the time moves on");
+
+    stat_t st;
+    check(stat("/etc/motd", &st) == 0 && st.mtime > 0, "ramdisk files keep the archive's time");
+    long fd = open("/tmp/t", O_WRONLY | O_CREAT);
+    check(fstat((int)fd, &st) == 0 && (long)st.mtime >= now && (long)st.mtime <= now + 2,
+          "a new file gets the current time");
+    long created = (long)st.mtime;
+    stat_t dir;
+    check(stat("/tmp", &dir) == 0 && (long)dir.mtime >= created, "and so does its directory");
+
+    sleep(1100);
+    write_all((int)fd, "later");
+    check(fstat((int)fd, &st) == 0 && (long)st.mtime > created, "writing changes the time");
+    dirent_t entry;
+    check(readdir("/tmp", 0, &entry) == 1 && entry.mtime == st.mtime, "readdir has the same time");
+    close((int)fd);
+    unlink("/tmp/t");
+}
+
 // Fill /tmp: files stop at 4 MiB (-EFBIG), /tmp as a whole at 16 MiB (-ENOSPC)
 static void check_limits(void)
 {
@@ -319,6 +346,7 @@ int main(int argc, char **argv)
     check_current_directory();
     check_seek();
     check_rename();
+    check_times();
     check_limits();
 
     print(failures ? "fstest: FAILED\n" : "fstest: ok\n");
