@@ -308,6 +308,7 @@ jobs:
             --run "test heap" "heap test: peak heap [0-9]+ KB, passed" \
             --run "test timer" "timer test: [0-9]+ ticks during the command, passed" \
             --run "test scroll" "scroll line 1499\nscroll test done" \
+            --run "date" "[A-Z][a-z]{2} [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} UTC" \
             --run "version" "AprismaOS v[^ ]+ \(${{ matrix.arch == 'x86_64' && 'x86_64' || 'i686' }}\)"
 
       # With the ramdisk, x86_64 boots into the user-space shell /bin/sh
@@ -345,6 +346,24 @@ jobs:
             --run "nope" "sh: nope: command not found" \
             --run "exit 3" "/bin/sh exited with code 3" \
             --run "version" "AprismaOS v[^ ]+ \(x86_64\)"
+
+      # The real-time clock, with QEMU's clock set to a known time
+      - name: Clock test ${{ matrix.artifact }}
+        if: ${{ !matrix.is_iso }}
+        run: |
+          python3 scripts/qemu_boot_test.py --arch ${{ matrix.arch }} \
+            --kernel ${{ matrix.artifact }}/aprisma.kernel --timeout 120 \
+            --qemu-arg=-rtc --qemu-arg=base=2001-02-03T04:05:06 \
+            --run "date" "Sat 2001-02-03 04:0[5-6]:[0-9][0-9] UTC"
+          if [ "${{ matrix.arch }}" = "x86_64" ]; then
+            python3 scripts/qemu_boot_test.py --arch x86_64 \
+              --kernel ${{ matrix.artifact }}/aprisma.kernel --timeout 120 --shell user \
+              --qemu-arg=-rtc --qemu-arg=base=2001-02-03T04:05:06 \
+              --run "date" "Sat 2001-02-03 04:0[5-6]:[0-9][0-9] UTC" \
+              --run "date -s" "(?m)^98117[0-9]{4}$" \
+              --run "echo hi > /tmp/f" 'echo hi > /tmp/f\n\$' \
+              --run "ls -l /tmp" "(?m)^2001-02-03 04:0[56] +3  f$"
+          fi
 
       # Keyboard and command-line behaviour (key presses sent through QMP)
       - name: Keyboard test ${{ matrix.artifact }}

@@ -20,6 +20,17 @@
 
 static fs_node_t *root;
 static size_t space_used;
+static uint64_t (*clock_now)(void);
+
+void fs_set_clock(uint64_t (*now)(void))
+{
+    clock_now = now;
+}
+
+static uint64_t now(void)
+{
+    return clock_now ? clock_now() : 0;
+}
 
 void fs_lock(void)
 {
@@ -42,6 +53,7 @@ static fs_node_t *new_node(fs_node_t *parent, const char *name, bool is_dir, boo
     node->is_dir = is_dir;
     node->writable = writable;
     node->parent = parent ? parent : node;
+    node->mtime = now();
 
     if (parent) {
         fs_node_t **link = &parent->children;
@@ -216,6 +228,7 @@ static int truncate_locked(fs_node_t *node, size_t size)
         memset(node->data + node->size, 0, size - node->size);
     }
     node->size = size;
+    node->mtime = now();
     return 0;
 }
 
@@ -234,6 +247,7 @@ static int create_locked(const char *path, bool is_dir, fs_node_t **out)
     fs_node_t *node = new_node(dir, name, is_dir, true);
     if (node == NULL)
         return -ENOSPC;
+    dir->mtime = node->mtime;
     if (out)
         *out = node;
     return 0;
@@ -250,7 +264,7 @@ void fs_tree_init(void)
     fs_unlock();
 }
 
-int fs_add_static(const char *path, bool is_dir, const uint8_t *data, size_t size)
+int fs_add_static(const char *path, bool is_dir, const uint8_t *data, size_t size, uint64_t mtime)
 {
     int r = 0;
     char name[FS_NAME_MAX];
@@ -285,6 +299,7 @@ int fs_add_static(const char *path, bool is_dir, const uint8_t *data, size_t siz
                 r = -ENOSPC;
                 break;
             }
+            child->mtime = mtime;
             if (final && !is_dir) {
                 child->data = (uint8_t *)data;  // read-only, never written or freed
                 child->size = size;
@@ -381,6 +396,7 @@ int fs_remove(const char *path, bool is_dir)
     if (r == 0 && node->children)
         r = -ENOTEMPTY;
     if (r == 0) {
+        node->parent->mtime = now();
         unlink_node(node);
         if (node->open_count > 0)
             node->removed = true;  // still readable through its open files
@@ -433,6 +449,7 @@ long fs_write(fs_node_t *node, size_t offset, const void *buf, size_t len)
             memcpy(node->data + offset, buf, len);
             if (offset + len > node->size)
                 node->size = offset + len;
+            node->mtime = now();
             r = (long)len;
         }
     }
@@ -486,6 +503,7 @@ int fs_rename(const char *from, const char *to)
             else
                 free_node(existing);
         }
+        node->parent->mtime = dir->mtime = now();
         unlink_node(node);
         strcpy(node->name, name);
         node->parent = dir;

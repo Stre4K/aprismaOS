@@ -121,6 +121,8 @@ int tar_parse(const uint8_t *archive, size_t size,
         e.data = archive + data_offset;
         e.size = (size_t)member_size;
         e.type = h->type == '\0' ? '0' : h->type;  // old archives use NUL for files
+        if (!octal(h->mtime, sizeof(h->mtime), &e.mtime))
+            e.mtime = 0;  // a broken time is no reason to drop the file
 
         count++;
         if (!entry(&e, ctx))

@@ -9,6 +9,7 @@
 #include <kernel/arch/memlayout.h>
 #include <kernel/mm/paging.h>
 #include <kernel/printk.h>
+#include <kernel/time.h>
 #include <string.h>
 
 #define MB_FLAG_MODS (1 << 3)
@@ -28,7 +29,7 @@ static bool add_entry(const tar_entry_t *e, void *ctx)
     if (*p == '\0')
         return true;
 
-    if (fs_add_static(e->path, e->type == '5', e->data, e->type == '5' ? 0 : e->size) < 0)
+    if (fs_add_static(e->path, e->type == '5', e->data, e->type == '5' ? 0 : e->size, e->mtime) < 0)
         printk("[FS] Skipping %s\n", e->path);
     else
         (*count)++;
@@ -54,7 +55,7 @@ int fs_init(multiboot_info_t *mbi)
     }
 
     // Somewhere to write: /tmp, even if the archive has no such directory
-    if (fs_add_static("/tmp", true, NULL, 0) < 0 || fs_make_writable("/tmp") < 0)
+    if (fs_add_static("/tmp", true, NULL, 0, time_now()) < 0 || fs_make_writable("/tmp") < 0)
         printk("[FS] Cannot make /tmp\n");
 
     mounted = true;

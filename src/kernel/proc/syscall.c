@@ -17,6 +17,7 @@
 #include <kernel/sched.h>
 #include <kernel/console.h>
 #include <kernel/fs.h>
+#include <kernel/time.h>
 #include <kernel/arch/memlayout.h>
 #include <kernel/mm/heap.h>
 #include <kernel/mm/pmm.h>
@@ -167,6 +168,7 @@ static void node_stat(const fs_node_t *node, stat_t *st)
     st->type = node->is_dir ? STAT_DIR : STAT_FILE;
     st->size = node->is_dir ? 0 : node->size;
     st->writable = node->writable;
+    st->mtime = node->mtime;
 }
 
 static int64_t sys_stat(uint64_t user_path_arg, uint64_t user_st)
@@ -320,6 +322,7 @@ static int64_t sys_readdir(uint64_t user_dir, uint64_t index, uint64_t user_entr
         if (node) {
             entry.size = node->is_dir ? 0 : node->size;
             entry.is_dir = node->is_dir;
+            entry.mtime = node->mtime;
             strncpy(entry.name, node->name, sizeof(entry.name) - 1);
         }
     }
@@ -619,6 +622,9 @@ void syscall_dispatch(regs_t *regs)
             // kill() and Ctrl+C wake a sleeping process early
             thread_sleep_unless((uint32_t)SYSCALL_ARG0(regs), &process_current()->kill_pending);
             result = process_current()->kill_pending ? -EINTR : 0;
+            break;
+        case SYS_TIME:
+            result = time_now_ms();
             break;
         case SYS_KILL:
             result = process_kill_pid((int)SYSCALL_ARG0(regs));

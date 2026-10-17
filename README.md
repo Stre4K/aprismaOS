@@ -57,10 +57,12 @@ What works today (both architectures unless noted):
   x86_64 one address space per process with the kernel half shared.
 - **Scheduling**: preemptive round-robin kernel threads with sleeping and wait queues.
 - **Drivers**: VGA text mode with scrollback, PS/2 keyboard with line editing, the PIT timer,
-  and a serial port that mirrors all console output (COM1).
+  the CMOS real-time clock (the date and time, UTC; `date` in both shells), and a serial port
+  that mirrors all console output (COM1).
 - **Filesystem**: one tree in memory. The ramdisk (a tar archive the bootloader loads next to
   the kernel) fills it at boot with `/bin` for programs and files like `/etc/motd`, read-only;
-  `/tmp` is writable (files up to 4 MiB, 16 MiB in all, gone after a reboot).
+  `/tmp` is writable (files up to 4 MiB, 16 MiB in all, gone after a reboot). Files keep the
+  time of their last change (`ls -l`).
 - **User mode** (x86_64): programs run in ring 3 and use system calls (`int 0x80`) for
   file descriptors (the console, files and pipes), files and directories (create, write,
   seek, rename, remove, `stat`), a current directory, starting, waiting for and killing
@@ -70,7 +72,7 @@ What works today (both architectures unless noted):
 - **User space** (x86_64): a C runtime with `malloc`/`free`, a shell (`/bin/sh`) with
   `cd`, pipelines, redirection (`<`, `>`, `>>`, `2>`) and background jobs (`&`, `jobs`, `fg`,
   `kill`), and programs such as `ls`, `cat`, `echo`, `sort`, `wc`, `yes`, `cp`, `mv`, `mkdir`,
-  `rm`, `rmdir` and `sleep`.
+  `rm`, `rmdir`, `sleep` and `date`.
 - **Kernel shell**: built-in commands for debugging (`help` lists them), also reachable when
   there is no ramdisk.
 - **Tests**: host unit tests for libc and kernel helpers, and QEMU tests that boot the system
@@ -97,6 +99,8 @@ $ cat missing 2> errors
 $ sleep 30 &
 $ jobs
 $ kill %1
+$ date
+$ ls -l /tmp
 ```
 
 Type a program's name and its arguments; `a | b` sends a's output to b, `a < file` lets a

@@ -11,7 +11,8 @@
 #include <string.h>
 
 void aprisma_fs_tree_init(void);
-int aprisma_fs_add_static(const char *path, bool is_dir, const uint8_t *data, size_t size);
+int aprisma_fs_add_static(const char *path, bool is_dir, const uint8_t *data, size_t size, uint64_t mtime);
+void aprisma_fs_set_clock(uint64_t (*now)(void));
 int aprisma_fs_make_writable(const char *path);
 int aprisma_fs_resolve(const char *path, fs_node_t **out);
 fs_node_t *aprisma_fs_lookup(const char *path);
@@ -77,9 +78,9 @@ static void fresh_tree(void)
 {
     fail_after = -1;
     aprisma_fs_tree_init();
-    aprisma_fs_add_static("./etc/motd", false, motd, sizeof(motd) - 1);
-    aprisma_fs_add_static("bin/", true, NULL, 0);
-    aprisma_fs_add_static("/tmp", true, NULL, 0);
+    aprisma_fs_add_static("./etc/motd", false, motd, sizeof(motd) - 1, 1000);
+    aprisma_fs_add_static("bin/", true, NULL, 0, 1000);
+    aprisma_fs_add_static("/tmp", true, NULL, 0, 1000);
     aprisma_fs_make_writable("/tmp");
 }
 
@@ -346,7 +347,7 @@ TEST(fs_out_of_memory_leaves_the_tree_intact)
     aprisma_fs_close(f);
 
     fail_after = 0;
-    CHECK_INT_EQ(aprisma_fs_add_static("/new/dir/file", false, motd, 3), -ENOSPC);
+    CHECK_INT_EQ(aprisma_fs_add_static("/new/dir/file", false, motd, 3, 0), -ENOSPC);
     fail_after = -1;
 }
 
@@ -434,4 +435,48 @@ TEST(fs_rename_moves_and_replaces)
     CHECK_INT_EQ(aprisma_fs_rename("/tmp/d", "/tmp/e/moved"), 0);
     CHECK(aprisma_fs_lookup("/tmp/e/moved/c") == f);
     CHECK_STR_EQ(aprisma_fs_child(aprisma_fs_lookup("/tmp"), 0)->name, "e");  // d is gone from /tmp
+}
+
+static uint64_t fake_now;
+
+static uint64_t fake_clock(void)
+{
+    return fake_now;
+}
+
+TEST(fs_times_follow_changes)
+{
+    fresh_tree();
+    aprisma_fs_set_clock(fake_clock);
+    CHECK_INT_EQ(aprisma_fs_lookup("/etc/motd")->mtime, 1000);  // from the ramdisk
+    CHECK_INT_EQ(aprisma_fs_lookup("/etc")->mtime, 1000);       // made along with it
+
+    fs_node_t *f, *tmp = aprisma_fs_lookup("/tmp");
+    fake_now = 2000;
+    aprisma_fs_open("/tmp/f", O_WRONLY | O_CREAT, &f);
+    CHECK_INT_EQ(f->mtime, 2000);
+    CHECK_INT_EQ(tmp->mtime, 2000);       // a directory changes with its entries
+    fake_now = 3000;
+    aprisma_fs_write(f, 0, "x", 1);
+    CHECK_INT_EQ(f->mtime, 3000);
+    CHECK_INT_EQ(tmp->mtime, 2000);       // writing a file does not change the directory
+    fake_now = 4000;
+    aprisma_fs_truncate(f, 0);
+    CHECK_INT_EQ(f->mtime, 4000);
+    char buf[1];
+    fake_now = 5000;
+    aprisma_fs_read(f, 0, buf, 1);
+    CHECK_INT_EQ(f->mtime, 4000);         // reading is no change
+    aprisma_fs_close(f);
+
+    aprisma_fs_create("/tmp/d", true, NULL);
+    fake_now = 6000;
+    aprisma_fs_rename("/tmp/f", "/tmp/d/f");
+    CHECK_INT_EQ(tmp->mtime, 6000);
+    CHECK_INT_EQ(aprisma_fs_lookup("/tmp/d")->mtime, 6000);
+    CHECK_INT_EQ(aprisma_fs_lookup("/tmp/d/f")->mtime, 4000);  // moving is no change to the file
+    fake_now = 7000;
+    aprisma_fs_remove("/tmp/d/f", false);
+    CHECK_INT_EQ(aprisma_fs_lookup("/tmp/d")->mtime, 7000);
+    aprisma_fs_set_clock(NULL);
 }
