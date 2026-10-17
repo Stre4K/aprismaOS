@@ -6,7 +6,7 @@
 #define __KERNEL_VERSION_H__
 
 #define OS_NAME        "AprismaOS"
-#define OS_VERSION     "0.8.3"
+#define OS_VERSION     "0.9.0"
 #if defined(__x86_64__)
 #define OS_ARCH "x86_64"
 #else
