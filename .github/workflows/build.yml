@@ -330,6 +330,13 @@ jobs:
             --run "cp /bin/hello /tmp" 'cp /bin/hello /tmp\n\$' \
             --run "/tmp/hello" "Hello from user mode" \
             --run "echo x > /etc/motd" "read-only" \
+            --run "cd /tmp" 'cd /tmp\n\$' \
+            --run "pwd" "(?m)^/tmp$" \
+            --run "mv list moved" 'mv list moved\n\$' \
+            --run "wc moved" "(?m)^[0-9]+ [0-9]+ [0-9]+ moved$" \
+            --run "cat nope 2> err" "exited with code 1" \
+            --run "cat err" "cat: nope: no such file" \
+            --run "cd /" 'cd /\n\$' \
             --run "nope" "sh: nope: command not found" \
             --run "exit 3" "/bin/sh exited with code 3" \
             --run "version" "AprismaOS v[^ ]+ \(x86_64\)"

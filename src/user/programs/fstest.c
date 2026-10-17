@@ -1,12 +1,15 @@
 // fstest: checks the writable filesystem through the system calls (run by
 // the kernel's `test user`). Everything it makes in /tmp is removed again.
 // Exits with the number of failed checks.
+//
+//   fstest             all checks
+//   fstest cwd DIR     exit 0 if the current directory is DIR
 #include "ulib.h"
 
 #define KERNEL_ADDRESS 0xFFFFFFFF80100000UL
 #define FILE_MAX       (4L << 20)  // the kernel's FS_FILE_MAX
 
-int main(void);
+int main(int argc, char **argv);
 
 static int failures;
 
@@ -178,6 +181,102 @@ static void check_listing_and_programs(void)
     check(readdir("/tmp", 0, &entry) == 0, "/tmp is empty again");
 }
 
+static void check_current_directory(void)
+{
+    char cwd[256];
+    check(getcwd(cwd, sizeof(cwd)) == 1 && strcmp(cwd, "/") == 0, "we start in /");
+    check(getcwd(cwd, 1) == -ERANGE, "getcwd into a small buffer");
+    check(getcwd((char *)KERNEL_ADDRESS, 64) == -EFAULT, "getcwd into kernel memory");
+    check(chdir("/etc/motd") == -ENOTDIR && chdir("/none") == -ENOENT, "chdir to a file or nowhere");
+    check(chdir((const char *)KERNEL_ADDRESS) == -EFAULT, "chdir from kernel memory");
+
+    check(chdir("/tmp") == 0 && mkdir("d") == 0 && chdir("d") == 0, "chdir and a relative mkdir");
+    check(getcwd(cwd, sizeof(cwd)) == 6 && strcmp(cwd, "/tmp/d") == 0, "getcwd follows");
+    long fd = open("f", O_WRONLY | O_CREAT);
+    check(fd >= 0 && write_all((int)fd, "rel") == 3, "a relative open");
+    close((int)fd);
+    stat_t st;
+    check(stat("/tmp/d/f", &st) == 0 && st.size == 3, "it landed in the current directory");
+    check(stat("../d/./f", &st) == 0 && stat("./f", &st) == 0, "relative paths with . and ..");
+    dirent_t entry;
+    check(readdir(".", 0, &entry) == 1 && strcmp(entry.name, "f") == 0, "readdir of .");
+
+    // Children start in our current directory
+    char *args[] = { "fstest", "cwd", "/tmp/d", 0 };
+    int code = -1;
+    long pid = spawn("fstest", args, 0);
+    check(pid > 0 && wait((int)pid, &code) == 0 && code == 0, "a child inherits the directory");
+
+    // ... and a program can be started by a relative path
+    long in = open("/bin/exitcode", O_RDONLY), out = open("ec", O_WRONLY | O_CREAT);
+    char buf[4096];
+    long n;
+    while ((n = read((int)in, buf, sizeof(buf))) > 0)
+        write((int)out, buf, (size_t)n);
+    close((int)in);
+    close((int)out);
+    pid = spawn("./ec", 0, 0);
+    check(pid > 0 && wait((int)pid, &code) == 0 && code == 42, "spawn ./program");
+
+    check(chdir("..") == 0 && getcwd(cwd, sizeof(cwd)) == 4 && strcmp(cwd, "/tmp") == 0, "chdir ..");
+    unlink("d/ec");
+    unlink("d/f");
+    rmdir("d");
+    chdir("/");
+}
+
+static void check_seek(void)
+{
+    char buf[16];
+    long fd = open("/tmp/s", O_RDWR | O_CREAT | O_TRUNC);
+    write_all((int)fd, "0123456789");
+    check(lseek((int)fd, 0, SEEK_CUR) == 10, "the position after writing");
+    check(lseek((int)fd, 2, SEEK_SET) == 2 && read((int)fd, buf, 3) == 3 && same(buf, "234", 3), "SEEK_SET");
+    check(lseek((int)fd, 1, SEEK_CUR) == 6 && read((int)fd, buf, 1) == 1 && buf[0] == '6', "SEEK_CUR");
+    check(lseek((int)fd, -2, SEEK_END) == 8 && read((int)fd, buf, 5) == 2 && same(buf, "89", 2), "SEEK_END");
+    check(lseek((int)fd, 3, SEEK_SET) == 3 && write_all((int)fd, "x") == 1, "write after seeking");
+    check(lseek((int)fd, 12, SEEK_SET) == 12 && write_all((int)fd, "!") == 1, "seek past the end");
+    lseek((int)fd, 0, SEEK_SET);
+    check(read((int)fd, buf, 16) == 13 && same(buf, "012x456789\0\0!", 13), "the gap is zeros");
+    check(lseek((int)fd, -1, SEEK_SET) == -EINVAL && lseek((int)fd, 0, 7) == -EINVAL, "bad seeks");
+    check(lseek((int)fd, 0, SEEK_CUR) == 13, "a bad seek leaves the position");
+    close((int)fd);
+
+    int ends[2];
+    pipe(ends);
+    check(lseek(ends[0], 0, SEEK_SET) == -ESPIPE && lseek(0, 0, SEEK_CUR) == -ESPIPE, "pipes and the console cannot seek");
+    close(ends[0]);
+    close(ends[1]);
+    check(lseek(9, 0, SEEK_SET) == -EBADF, "seek a closed descriptor");
+    unlink("/tmp/s");
+}
+
+static void check_rename(void)
+{
+    char buf[8];
+    stat_t st;
+    long fd = open("/tmp/r1", O_RDWR | O_CREAT);
+    write_all((int)fd, "moved");
+    check(rename("/tmp/r1", "/tmp/r2") == 0, "rename a file");
+    check(stat("/tmp/r1", &st) == -ENOENT && stat("/tmp/r2", &st) == 0, "under its new name");
+    lseek((int)fd, 0, SEEK_SET);
+    check(read((int)fd, buf, 5) == 5 && same(buf, "moved", 5), "an open file survives being renamed");
+    close((int)fd);
+
+    close((int)open("/tmp/r3", O_WRONLY | O_CREAT));
+    check(rename("/tmp/r2", "/tmp/r3") == 0 && stat("/tmp/r3", &st) == 0 && st.size == 5, "a file replaces a file");
+    mkdir("/tmp/rd");
+    check(rename("/tmp/r3", "/tmp/rd/r") == 0, "into a directory");
+    check(rename("/tmp/rd/r", "/tmp/rd") == -EEXIST, "not over a directory");
+    check(rename("/tmp/rd", "/tmp/rd/sub") == -EINVAL, "not into itself");
+    check(rename("/etc/motd", "/tmp/m") == -EROFS && rename("/tmp/rd/r", "/etc/r") == -EROFS, "not out of or into the ramdisk");
+    check(rename("/tmp/none", "/tmp/x") == -ENOENT, "rename something missing");
+    check(chdir("/tmp") == 0 && rename("rd", "rd2") == 0 && stat("/tmp/rd2/r", &st) == 0, "relative names, contents move along");
+    chdir("/");
+    unlink("/tmp/rd2/r");
+    rmdir("/tmp/rd2");
+}
+
 // Fill /tmp: files stop at 4 MiB (-EFBIG), /tmp as a whole at 16 MiB (-ENOSPC)
 static void check_limits(void)
 {
@@ -206,12 +305,20 @@ static void check_limits(void)
     unlink("/tmp/after");
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
+    if (argc > 2 && strcmp(argv[1], "cwd") == 0) {
+        char cwd[256];
+        return getcwd(cwd, sizeof(cwd)) >= 0 && strcmp(cwd, argv[2]) == 0 ? 0 : 1;
+    }
+
     check_files();
     check_errors();
     check_descriptors();
     check_listing_and_programs();
+    check_current_directory();
+    check_seek();
+    check_rename();
     check_limits();
 
     print(failures ? "fstest: FAILED\n" : "fstest: ok\n");
