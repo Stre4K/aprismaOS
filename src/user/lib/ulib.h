@@ -42,6 +42,8 @@ long rename(const char *from, const char *to);
 long chdir(const char *path);
 long getcwd(char *buf, size_t size);
 long wait(int pid, int *code);
+long waitpid(int pid, int *code, int flags);  // WAIT_NOHANG: -EAGAIN while it runs
+long kill(int pid);                            // a negative pid: the process group -pid
 long readdir(const char *dir, size_t index, dirent_t *entry);
 long brk(void *end);           // new end of the heap, or -ENOMEM
 void *sbrk(long increment);    // old end of the heap, or (void *)-1

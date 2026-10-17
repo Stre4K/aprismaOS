@@ -115,6 +115,16 @@ long wait(int pid, int *code)
     return syscall3(SYS_WAIT, pid, (long)code, 0);
 }
 
+long waitpid(int pid, int *code, int flags)
+{
+    return syscall3(SYS_WAIT, pid, (long)code, flags);
+}
+
+long kill(int pid)
+{
+    return syscall3(SYS_KILL, pid, 0, 0);
+}
+
 long readdir(const char *dir, size_t index, dirent_t *entry)
 {
     return syscall3(SYS_READDIR, (long)dir, (long)index, (long)entry);
