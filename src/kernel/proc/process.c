@@ -28,19 +28,53 @@
 static int next_pid = 1;
 static process_t *all_processes;  // not yet exited; changed with interrupts disabled
 
+#define PROGRAM_MAX (16u * 1024 * 1024)  // largest program file loaded
+
+// The file `name` stands for: itself with a '/', else /bin/name
+static void program_path(const char *name, char path[FS_PATH_MAX])
+{
+    if (strchr(name, '/')) {
+        strncpy(path, name, FS_PATH_MAX - 1);
+        path[FS_PATH_MAX - 1] = '\0';
+    } else {
+        snprintf(path, FS_PATH_MAX, "/bin/%s", name);
+    }
+}
+
 const fs_node_t *process_find_program(const char *name)
 {
     char path[FS_PATH_MAX];
-
-    if (strchr(name, '/')) {
-        strncpy(path, name, sizeof(path) - 1);
-        path[sizeof(path) - 1] = '\0';
-    } else {
-        snprintf(path, sizeof(path), "/bin/%s", name);
-    }
-
+    program_path(name, path);
     const fs_node_t *node = fs_lookup(path);
     return node && !node->is_dir ? node : NULL;
+}
+
+// Read a whole program file into a new kernel buffer (from whichever
+// filesystem it is on); the open file keeps it from being freed meanwhile
+static int read_program(const char *name, uint8_t **image, size_t *size)
+{
+    char path[FS_PATH_MAX];
+    program_path(name, path);
+    fs_node_t *node;
+    int r = fs_open(path, O_RDONLY, &node);
+    if (r < 0)
+        return r;
+
+    size_t want = node->size;
+    uint8_t *buf = want <= PROGRAM_MAX ? kmalloc(want ? want : 1) : NULL;
+    size_t got = 0;
+    long n = 1;
+    while (buf && got < want && (n = fs_read(node, got, buf + got, want - got)) > 0)
+        got += (size_t)n;
+    fs_close(node);
+
+    if (buf == NULL || n < 0) {
+        kfree(buf);
+        return buf ? (int)n : -ENOMEM;
+    }
+    *image = buf;
+    *size = got;
+    return 0;
 }
 
 // First code of a process's thread: the scheduler has already loaded the
@@ -193,12 +227,14 @@ process_t *process_spawn_args(const char *name, int argc, const char *const argv
     if (p->space == 0)
         goto fail;
 
-    // Load under the filesystem lock: a program in /tmp could otherwise be
-    // removed or rewritten while it is being copied
-    fs_lock();
-    program = process_find_program(name);
-    p->entry = program ? elf_load(p->space, program->data, program->size, &p->heap_start) : 0;
-    fs_unlock();
+    // Load from a copy: the file itself may be on a disk, or in /tmp where
+    // it could be rewritten meanwhile
+    uint8_t *image = NULL;
+    size_t image_size = 0;
+    p->entry = 0;
+    if (read_program(name, &image, &image_size) == 0)
+        p->entry = elf_load(p->space, image, image_size, &p->heap_start);
+    kfree(image);
     p->brk = p->heap_start;
     uintptr_t stack_pages[USER_STACK_PAGES];
     if (p->entry == 0 || !map_user_stack(p, stack_pages))

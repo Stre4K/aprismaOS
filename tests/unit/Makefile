@@ -20,7 +20,8 @@ LIBC_DIR    := $(ROOTDIR)/src/libc
 LIBC_SRCS   := $(filter-out $(LIBC_DIR)/stdio/putchar.c $(LIBC_DIR)/time/sleep.c, \
                  $(shell find $(LIBC_DIR) -name '*.c'))
 KERNEL_SRCS := $(ROOTDIR)/src/kernel/core/bitmap.c $(ROOTDIR)/src/kernel/fs/tar.c \
-               $(ROOTDIR)/src/kernel/fs/tree.c $(ROOTDIR)/src/kernel/drivers/rtc.c
+               $(ROOTDIR)/src/kernel/fs/tree.c $(ROOTDIR)/src/kernel/fs/memfs.c \
+               $(ROOTDIR)/src/kernel/drivers/rtc.c
 # The user programs' allocator (its sbrk, print and exit come from test_malloc.c;
 # the filesystem tree's kmalloc and kfree from test_fs.c)
 USER_SRCS   := $(ROOTDIR)/src/user/lib/malloc.c
