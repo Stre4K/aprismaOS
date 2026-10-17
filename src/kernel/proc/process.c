@@ -213,6 +213,7 @@ process_t *process_spawn_args(const char *name, int argc, const char *const argv
         }
     }
     p->pgid = options && options->pgid ? options->pgid : p->pid;
+    strcpy(p->cwd, options && options->cwd ? options->cwd : "/");
 
     // Listed before its thread can run (and exit, which unlists it)
     list_add(p);

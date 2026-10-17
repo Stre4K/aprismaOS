@@ -109,10 +109,21 @@ static int64_t copy_user_string(char *dst, uint64_t src, size_t size)
     return -ENAMETOOLONG;
 }
 
-static int64_t sys_open(uint64_t user_path, uint64_t flags)
+// Copy a path from user mode and make it absolute: relative paths start
+// at the process's current directory
+static int64_t user_path(uint64_t src, char out[FS_PATH_MAX])
+{
+    char raw[FS_PATH_MAX];
+    int64_t len = copy_user_string(raw, src, sizeof(raw));
+    if (len < 0)
+        return len;
+    return fs_path_join(process_current()->cwd, raw, out);
+}
+
+static int64_t sys_open(uint64_t user_path_arg, uint64_t flags)
 {
     char path[FS_PATH_MAX];
-    int64_t len = copy_user_string(path, user_path, sizeof(path));
+    int64_t len = user_path(user_path_arg, path);
     if (len < 0)
         return len;
 
@@ -129,10 +140,10 @@ static int64_t sys_open(uint64_t user_path, uint64_t flags)
 }
 
 // The calls that only take a path
-static int64_t path_call(uint64_t user_path, int (*call)(const char *path))
+static int64_t path_call(uint64_t user_path_arg, int (*call)(const char *path))
 {
     char path[FS_PATH_MAX];
-    int64_t len = copy_user_string(path, user_path, sizeof(path));
+    int64_t len = user_path(user_path_arg, path);
     return len < 0 ? len : call(path);
 }
 
@@ -158,10 +169,10 @@ static void node_stat(const fs_node_t *node, stat_t *st)
     st->writable = node->writable;
 }
 
-static int64_t sys_stat(uint64_t user_path, uint64_t user_st)
+static int64_t sys_stat(uint64_t user_path_arg, uint64_t user_st)
 {
     char path[FS_PATH_MAX];
-    int64_t len = copy_user_string(path, user_path, sizeof(path));
+    int64_t len = user_path(user_path_arg, path);
     if (len < 0)
         return len;
     if (!user_buffer_ok(user_st, sizeof(stat_t), true))
@@ -190,6 +201,52 @@ static int64_t sys_fstat(uint64_t fd, uint64_t user_st)
     file_stat(file, &st);
     memcpy((void *)(uintptr_t)user_st, &st, sizeof(st));  // checked above
     return 0;
+}
+
+static int64_t sys_lseek(uint64_t fd, uint64_t offset, uint64_t whence)
+{
+    file_t *file = fd_file(fd);
+    if (file == NULL)
+        return -EBADF;
+    return file_seek(file, (long)offset, (int)whence);
+}
+
+static int64_t sys_rename(uint64_t user_from, uint64_t user_to)
+{
+    char from[FS_PATH_MAX], to[FS_PATH_MAX];
+    int64_t r = user_path(user_from, from);
+    if (r == 0)
+        r = user_path(user_to, to);
+    return r < 0 ? r : fs_rename(from, to);
+}
+
+static int64_t sys_chdir(uint64_t user_path_arg)
+{
+    char path[FS_PATH_MAX];
+    int64_t r = user_path(user_path_arg, path);
+    if (r < 0)
+        return r;
+    fs_node_t *node;
+    fs_lock();
+    r = fs_resolve(path, &node);
+    if (r == 0 && !node->is_dir)
+        r = -ENOTDIR;
+    fs_unlock();
+    if (r == 0)
+        strcpy(process_current()->cwd, path);
+    return r;
+}
+
+static int64_t sys_getcwd(uint64_t user_buf, uint64_t size)
+{
+    const char *cwd = process_current()->cwd;
+    size_t len = strlen(cwd);
+    if (len + 1 > size)
+        return -ERANGE;
+    if (!user_buffer_ok(user_buf, len + 1, true))
+        return -EFAULT;
+    memcpy((void *)(uintptr_t)user_buf, cwd, len + 1);  // checked above
+    return (int64_t)len;
 }
 
 static int64_t sys_dup2(uint64_t fd, uint64_t new_fd)
@@ -244,7 +301,7 @@ static int64_t sys_pipe(uint64_t user_fds)
 static int64_t sys_readdir(uint64_t user_dir, uint64_t index, uint64_t user_entry)
 {
     char dir[FS_PATH_MAX];
-    int64_t len = copy_user_string(dir, user_dir, sizeof(dir));
+    int64_t len = user_path(user_dir, dir);
     if (len < 0)
         return len;
     if (!user_buffer_ok(user_entry, sizeof(dirent_t), true))
@@ -325,7 +382,8 @@ static int64_t sys_brk(uint64_t end)
 
 // A spawn request copied out of user memory
 typedef struct {
-    char path[FS_PATH_MAX];
+    char path[FS_PATH_MAX];      // as given (argv[0] if there is no argv)
+    char program[FS_PATH_MAX];   // a name looked up in /bin, or an absolute path
     char strings[PROCESS_MAX_ARG_BYTES];
     const char *argv[PROCESS_MAX_ARGS];
 } spawn_request_t;
@@ -398,6 +456,7 @@ static int64_t read_spawn_options(uint64_t user_options, process_options_t *opti
     if (wanted.pgid != 0 && !may_join_group(self, wanted.pgid))
         return -EPERM;
     options->pgid = wanted.pgid;
+    options->cwd = self->cwd;  // children start where their parent is
     return 0;
 }
 
@@ -408,6 +467,13 @@ static int64_t sys_spawn(uint64_t user_path, uint64_t user_argv, uint64_t user_o
         return -ENOEXEC;
 
     int64_t result = copy_user_string(req->path, user_path, sizeof(req->path));
+    if (result < 0)
+        goto out;
+    // A path ("./prog", "/tmp/prog") is relative to the current directory
+    if (strchr(req->path, '/'))
+        result = fs_path_join(process_current()->cwd, req->path, req->program);
+    else
+        strcpy(req->program, req->path);
     if (result < 0)
         goto out;
 
@@ -428,11 +494,11 @@ static int64_t sys_spawn(uint64_t user_path, uint64_t user_argv, uint64_t user_o
         goto out;
     }
 
-    if (process_find_program(req->path) == NULL) {
+    if (process_find_program(req->program) == NULL) {
         result = -ENOENT;
         goto out;
     }
-    process_t *child = process_spawn_args(req->path, (int)argc, req->argv, &options);
+    process_t *child = process_spawn_args(req->program, (int)argc, req->argv, &options);
     if (child == NULL) {
         result = -ENOEXEC;
         goto out;
@@ -515,6 +581,18 @@ void syscall_dispatch(regs_t *regs)
             break;
         case SYS_FSTAT:
             result = sys_fstat(SYSCALL_ARG0(regs), SYSCALL_ARG1(regs));
+            break;
+        case SYS_LSEEK:
+            result = sys_lseek(SYSCALL_ARG0(regs), SYSCALL_ARG1(regs), SYSCALL_ARG2(regs));
+            break;
+        case SYS_RENAME:
+            result = sys_rename(SYSCALL_ARG0(regs), SYSCALL_ARG1(regs));
+            break;
+        case SYS_CHDIR:
+            result = sys_chdir(SYSCALL_ARG0(regs));
+            break;
+        case SYS_GETCWD:
+            result = sys_getcwd(SYSCALL_ARG0(regs), SYSCALL_ARG1(regs));
             break;
         case SYS_DUP2:
             result = sys_dup2(SYSCALL_ARG0(regs), SYSCALL_ARG1(regs));

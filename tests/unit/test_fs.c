@@ -362,3 +362,76 @@ TEST(fs_reset_frees_everything)
     CHECK_INT_EQ(live_blocks, blocks_of_empty_tree());
     CHECK_INT_EQ(aprisma_fs_space_used(), 0);
 }
+
+int aprisma_fs_rename(const char *from, const char *to);
+int aprisma_fs_path_join(const char *cwd, const char *path, char out[FS_PATH_MAX]);
+
+TEST(fs_path_join_makes_paths_absolute)
+{
+    char out[FS_PATH_MAX];
+    CHECK_INT_EQ(aprisma_fs_path_join("/tmp", "a", out), 0);
+    CHECK_STR_EQ(out, "/tmp/a");
+    CHECK_INT_EQ(aprisma_fs_path_join("/tmp", "/etc/motd", out), 0);  // absolute: cwd ignored
+    CHECK_STR_EQ(out, "/etc/motd");
+    CHECK_INT_EQ(aprisma_fs_path_join("/tmp/d", "../x/./y//", out), 0);
+    CHECK_STR_EQ(out, "/tmp/x/y");
+    CHECK_INT_EQ(aprisma_fs_path_join("/", "..", out), 0);           // the root's parent is the root
+    CHECK_STR_EQ(out, "/");
+    CHECK_INT_EQ(aprisma_fs_path_join("/a/b", "../../../c", out), 0);
+    CHECK_STR_EQ(out, "/c");
+    CHECK_INT_EQ(aprisma_fs_path_join("/tmp", "", out), 0);          // "" is the directory itself
+    CHECK_STR_EQ(out, "/tmp");
+    CHECK_INT_EQ(aprisma_fs_path_join("/tmp", ".", out), 0);
+    CHECK_STR_EQ(out, "/tmp");
+
+    char name[FS_NAME_MAX + 1];
+    memset(name, 'n', FS_NAME_MAX);
+    name[FS_NAME_MAX] = '\0';
+    CHECK_INT_EQ(aprisma_fs_path_join("/", name, out), -ENAMETOOLONG);
+    char deep[FS_PATH_MAX];
+    strcpy(deep, "/");
+    for (int i = 0; i < 60; i++)
+        strcat(deep, "abc/");  // fits as text, but not under a long cwd
+    CHECK_INT_EQ(aprisma_fs_path_join("/tmp/some/longer/directory/name/here", deep + 1, out), -ENAMETOOLONG);
+}
+
+TEST(fs_rename_moves_and_replaces)
+{
+    fresh_tree();
+    fs_node_t *f, *g;
+    aprisma_fs_create("/tmp/d", true, NULL);
+    aprisma_fs_open("/tmp/a", O_WRONLY | O_CREAT, &f);
+    aprisma_fs_write(f, 0, "aaa", 3);
+    CHECK_INT_EQ(aprisma_fs_rename("/tmp/a", "/tmp/d/b"), 0);  // move and rename
+    CHECK(aprisma_fs_lookup("/tmp/a") == NULL);
+    CHECK(aprisma_fs_lookup("/tmp/d/b") == f && f->parent == aprisma_fs_lookup("/tmp/d"));
+    CHECK_STR_EQ(f->name, "b");
+    char buf[4];
+    CHECK_INT_EQ(aprisma_fs_read(f, 0, buf, 3), 3);  // still the same open file
+    CHECK_INT_EQ(aprisma_fs_rename("/tmp/d/b", "/tmp/d/b"), 0);
+
+    // A file replaces a file; the replaced one is freed (or kept while open)
+    aprisma_fs_open("/tmp/c", O_WRONLY | O_CREAT, &g);
+    CHECK_INT_EQ(aprisma_fs_rename("/tmp/d/b", "/tmp/c"), 0);
+    CHECK(aprisma_fs_lookup("/tmp/c") == f && g->removed);
+    aprisma_fs_close(g);
+    aprisma_fs_close(f);
+
+    // What may not happen
+    aprisma_fs_create("/tmp/e", true, NULL);
+    CHECK_INT_EQ(aprisma_fs_rename("/tmp/c", "/tmp/d"), -EEXIST);     // a file over a directory
+    CHECK_INT_EQ(aprisma_fs_rename("/tmp/e", "/tmp/d"), -EEXIST);     // a directory over a directory
+    CHECK_INT_EQ(aprisma_fs_rename("/tmp/d", "/tmp/d/x"), -EINVAL);   // into itself
+    CHECK_INT_EQ(aprisma_fs_rename("/tmp", "/tmp/d/x"), -EROFS);      // /tmp's parent is read-only
+    CHECK_INT_EQ(aprisma_fs_rename("/etc/motd", "/tmp/m"), -EROFS);
+    CHECK_INT_EQ(aprisma_fs_rename("/tmp/c", "/etc/c"), -EROFS);
+    CHECK_INT_EQ(aprisma_fs_rename("/tmp/none", "/tmp/x"), -ENOENT);
+    CHECK_INT_EQ(aprisma_fs_rename("/tmp/c", "/tmp/none/x"), -ENOENT);
+    CHECK_INT_EQ(aprisma_fs_rename("/", "/tmp/x"), -EINVAL);
+
+    // Directories move with what is inside them
+    CHECK_INT_EQ(aprisma_fs_rename("/tmp/c", "/tmp/d/c"), 0);
+    CHECK_INT_EQ(aprisma_fs_rename("/tmp/d", "/tmp/e/moved"), 0);
+    CHECK(aprisma_fs_lookup("/tmp/e/moved/c") == f);
+    CHECK_STR_EQ(aprisma_fs_child(aprisma_fs_lookup("/tmp"), 0)->name, "e");  // d is gone from /tmp
+}

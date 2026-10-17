@@ -232,6 +232,25 @@ long file_write(file_t *f, const void *buf, size_t len)
     }
 }
 
+long file_seek(file_t *f, long offset, int whence)
+{
+    if (f->type != FILE_NODE)
+        return -ESPIPE;
+    long base;
+    if (whence == SEEK_SET)
+        base = 0;
+    else if (whence == SEEK_CUR)
+        base = (long)f->offset;
+    else if (whence == SEEK_END)
+        base = (long)f->node->size;
+    else
+        return -EINVAL;
+    if ((offset < 0 && base + offset < 0) || (offset > 0 && base + offset < base))
+        return -EINVAL;  // before the start, or overflowing
+    f->offset = (size_t)(base + offset);
+    return base + offset;
+}
+
 void file_stat(file_t *f, stat_t *st)
 {
     st->size = 0;
