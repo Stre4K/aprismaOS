@@ -337,6 +337,11 @@ jobs:
             --run "cat nope 2> err" "exited with code 1" \
             --run "cat err" "cat: nope: no such file" \
             --run "cd /" 'cd /\n\$' \
+            --run "sleep 30 &" '(?m)^\[1\] [0-9]+$' \
+            --run "jobs" '(?m)^\[1\] running  sleep 30$' \
+            --run "kill %1" "killed: terminated \(kill\)" \
+            --run "sleep 0.2 &" '(?m)^\[2\] [0-9]+$' \
+            --run "fg" 'fg\nsleep 0.2\n\$' \
             --run "nope" "sh: nope: command not found" \
             --run "exit 3" "/bin/sh exited with code 3" \
             --run "version" "AprismaOS v[^ ]+ \(x86_64\)"
