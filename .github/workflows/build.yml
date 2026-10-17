@@ -39,6 +39,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # The FAT tests make their disk images with mkfs.fat and mtools
+      - name: Install dosfstools and mtools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends dosfstools mtools
       - name: Run unit tests
         run: make -C tests/unit
 
@@ -229,7 +234,9 @@ jobs:
             genisoimage \
             grub-pc-bin \
             qemu-system-x86 \
-            qemu-utils
+            qemu-utils \
+            dosfstools \
+            mtools
 
       # Inspect the artifact
       - name: Sanity check ${{ matrix.artifact }}
@@ -289,6 +296,13 @@ jobs:
             fi
           fi
 
+      # The disk for the first IDE drive (FAT32, mounted at /disk), made here
+      # from the artifact's ramdisk: the build images have no mtools. The
+      # kernel tests below find it next to the kernel.
+      - name: Make the disk image ${{ matrix.artifact }}
+        if: ${{ !matrix.is_iso }}
+        run: scripts/make_disk.sh ${{ matrix.artifact }}/disk.img ${{ matrix.artifact }}/initrd.tar
+
       # Boot the artifact in QEMU and check what the kernel prints
       - name: Boot test ${{ matrix.artifact }}
         run: |
@@ -346,6 +360,37 @@ jobs:
             --run "nope" "sh: nope: command not found" \
             --run "exit 3" "/bin/sh exited with code 3" \
             --run "version" "AprismaOS v[^ ]+ \(x86_64\)"
+
+      # Reading the FAT32 disk: in the kernel shell, and on x86_64 also
+      # from user programs (and a program started from the disk)
+      - name: Disk test ${{ matrix.artifact }}
+        if: ${{ !matrix.is_iso }}
+        run: |
+          python3 scripts/qemu_boot_test.py --arch ${{ matrix.arch }} \
+            --kernel ${{ matrix.artifact }}/aprisma.kernel --timeout 120 --check-serial \
+            --run "ls /disk" "(?m)^numbers.txt +23893 bytes$" \
+            --run "cat /disk/README.txt" "This file was read from the disk" \
+            --run "ls /disk/docs" "Long file names work.txt"
+          if [ "${{ matrix.arch }}" = "x86_64" ]; then
+            python3 scripts/qemu_boot_test.py --arch x86_64 \
+              --kernel ${{ matrix.artifact }}/aprisma.kernel --timeout 120 --check-serial --shell user \
+              --run "ls -l /disk" "(?m)^[0-9-]+ [0-9:]+ +23893  numbers.txt$" \
+              --run "wc /disk/numbers.txt" "(?m)^5000 5000 23893 /disk/numbers.txt$" \
+              --run "/disk/bin/hello" "Hello from user mode" \
+              --run "cd /disk/docs" 'cd /disk/docs\n\$' \
+              --run "cat 'Long file names work.txt'" "LONGFI~1.TXT" \
+              --run "echo x > /disk/new" "read-only" \
+              --run "cp /disk/numbers.txt /tmp" 'cp /disk/numbers.txt /tmp\n\$' \
+              --run "wc /tmp/numbers.txt" "(?m)^5000 5000 23893 /tmp/numbers.txt$"
+          fi
+
+      # Booting without a disk must work (/disk is just not there)
+      - name: Boot test without disk ${{ matrix.artifact }}
+        if: ${{ !matrix.is_iso }}
+        run: |
+          python3 scripts/qemu_boot_test.py --arch ${{ matrix.arch }} \
+            --kernel ${{ matrix.artifact }}/aprisma.kernel --timeout 120 --no-disk \
+            --run "ls /disk" "no such file" --run "cat /etc/motd" "Welcome to AprismaOS!"
 
       # The real-time clock, with QEMU's clock set to a known time
       - name: Clock test ${{ matrix.artifact }}
