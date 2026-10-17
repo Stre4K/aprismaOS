@@ -117,6 +117,7 @@ typedef struct {
 #define EPERM   1   // not allowed
 #define ENOENT  2   // no such file or directory
 #define ESRCH   3   // no such process
+#define EIO     5   // the disk could not be read (or written)
 #define EINTR   4   // interrupted (the process is being killed)
 #define E2BIG   7   // argument list too long
 #define ENOEXEC 8   // not a valid program (or out of memory loading it)
@@ -124,7 +125,9 @@ typedef struct {
 #define ECHILD 10   // no such child process (or already waited for)
 #define EAGAIN 11   // not yet (wait with WAIT_NOHANG)
 #define ENOMEM 12   // out of memory
+#define EBUSY  16   // in use (a mount point)
 #define EEXIST 17   // already exists
+#define EXDEV  18   // not on the same filesystem (rename)
 #define EFAULT 14   // bad address
 #define ENOTDIR 20  // not a directory
 #define EISDIR 21   // is a directory

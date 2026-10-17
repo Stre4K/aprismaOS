@@ -1,10 +1,11 @@
 // tree.c
 // <kernel/fs.h>
 //
-// The filesystem tree. Directories keep their entries in a list (in the
-// order they were made); paths are walked one component at a time. A
-// writable file owns its contents, a kernel heap buffer grown on demand
-// (at least doubling) and counted against FS_SPACE_MAX.
+// The filesystem tree, for every filesystem (the VFS). Directories keep
+// their entries in a list (in the order they were made); paths are walked
+// one component at a time, filling in directories of filesystems that
+// load them lazily, and stepping into what is mounted on a directory.
+// Contents are left to each node's filesystem (fs_ops_t).
 //
 // The lock just disables preemption: there is one CPU and nothing here
 // sleeps or is used from interrupt handlers. Unit tests build this file
@@ -16,10 +17,7 @@
 #include <kernel/sched.h>
 #include <string.h>
 
-#define MIN_CAPACITY 256
-
 static fs_node_t *root;
-static size_t space_used;
 static uint64_t (*clock_now)(void);
 
 void fs_set_clock(uint64_t (*now)(void))
@@ -44,6 +42,7 @@ void fs_unlock(void)
 
 /* ---- nodes ---- */
 
+// A node of the parent's filesystem (memfs for a new tree's root)
 static fs_node_t *new_node(fs_node_t *parent, const char *name, bool is_dir, bool writable)
 {
     fs_node_t *node = kcalloc(1, sizeof(*node));
@@ -52,6 +51,7 @@ static fs_node_t *new_node(fs_node_t *parent, const char *name, bool is_dir, boo
     strcpy(node->name, name);  // callers check the length
     node->is_dir = is_dir;
     node->writable = writable;
+    node->ops = parent ? parent->ops : &memfs_ops;
     node->parent = parent ? parent : node;
     node->mtime = now();
 
@@ -66,10 +66,8 @@ static fs_node_t *new_node(fs_node_t *parent, const char *name, bool is_dir, boo
 
 static void free_node(fs_node_t *node)
 {
-    if (node->writable && node->data) {
-        space_used -= node->capacity;
-        kfree(node->data);
-    }
+    if (node->ops->release)
+        node->ops->release(node);
     kfree(node);
 }
 
@@ -81,6 +79,8 @@ static void free_tree(fs_node_t *node)
         free_tree(child);
         child = next;
     }
+    if (node->mounted)
+        free_tree(node->mounted);
     free_node(node);
 }
 
@@ -94,13 +94,50 @@ static void unlink_node(fs_node_t *node)
     node->parent = NULL;  // detached; only open files still reach it
 }
 
+// Let a filesystem fill in a directory the first time it is looked into
+static int load(fs_node_t *dir)
+{
+    if (!dir->is_dir || dir->loaded || dir->ops->load_dir == NULL)
+        return 0;
+    int r = dir->ops->load_dir(dir);
+    if (r == 0) {
+        dir->loaded = true;
+    } else {
+        // Drop what it managed to add, so that a later try starts afresh
+        while (dir->children) {
+            fs_node_t *child = dir->children;
+            dir->children = child->next;
+            free_tree(child);
+        }
+    }
+    return r;
+}
+
 static fs_node_t *find_child(fs_node_t *dir, const char *name)
 {
+    if (load(dir) < 0)
+        return NULL;
     for (fs_node_t *child = dir->children; child; child = child->next) {
         if (strcmp(child->name, name) == 0)
             return child;
     }
     return NULL;
+}
+
+// What a directory entry stands for: the root of a filesystem mounted on it
+static fs_node_t *follow(fs_node_t *node)
+{
+    return node->mounted ? node->mounted : node;
+}
+
+// The root of the filesystem a node belongs to: climb until the parent
+// is the tree's root's own parent or belongs to another filesystem (the
+// parent of a mounted root is the mount point's directory)
+static fs_node_t *fs_root_of(fs_node_t *node)
+{
+    while (node->parent != node && node->parent->ops == node->ops)
+        node = node->parent;
+    return node;
 }
 
 /* ---- paths ---- */
@@ -166,70 +203,38 @@ static int walk(const char *path, fs_node_t **out, char *last)
             node = node->parent;
             continue;
         }
+        int r = load(node);
+        if (r < 0)
+            return r;
         node = find_child(node, name);
         if (node == NULL)
             return -ENOENT;
+        node = follow(node);
     }
 
     if (last && last[0] == '\0')
         return -EINVAL;  // the root
+    if (last) {
+        int r = load(node);  // creating needs the directory's entries
+        if (r < 0)
+            return r;
+    }
     *out = node;
     return 0;
 }
 
-/* ---- contents ---- */
-
-// Make room for `size` bytes of a writable file
-static int reserve(fs_node_t *node, size_t size)
-{
-    if (size <= node->capacity)
-        return 0;
-    if (size > FS_FILE_MAX)
-        return -EFBIG;
-
-    size_t capacity = node->capacity * 2;
-    if (capacity < MIN_CAPACITY)
-        capacity = MIN_CAPACITY;
-    if (capacity < size)
-        capacity = size;
-    if (capacity > FS_FILE_MAX)
-        capacity = FS_FILE_MAX;
-    if (space_used - node->capacity + capacity > FS_SPACE_MAX)
-        capacity = size;  // no room to grow ahead: just what is needed
-    if (space_used - node->capacity + capacity > FS_SPACE_MAX)
-        return -ENOSPC;
-
-    uint8_t *data = krealloc(node->data, capacity);
-    if (data == NULL)
-        return -ENOSPC;
-    space_used += capacity - node->capacity;
-    node->data = data;
-    node->capacity = capacity;
-    return 0;
-}
+/* ---- contents (left to the node's filesystem) ---- */
 
 static int truncate_locked(fs_node_t *node, size_t size)
 {
     if (node->is_dir)
         return -EISDIR;
-    if (!node->writable)
+    if (!node->writable || node->ops->truncate == NULL)
         return -EROFS;
-
-    if (size == 0 && node->data) {
-        // Give the memory back: emptying is how files are rewritten
-        kfree(node->data);
-        space_used -= node->capacity;
-        node->data = NULL;
-        node->capacity = 0;
-    } else if (size > node->size) {
-        int r = reserve(node, size);
-        if (r < 0)
-            return r;
-        memset(node->data + node->size, 0, size - node->size);
-    }
-    node->size = size;
-    node->mtime = now();
-    return 0;
+    int r = node->ops->truncate(node, size);
+    if (r == 0)
+        node->mtime = now();
+    return r;
 }
 
 static int create_locked(const char *path, bool is_dir, fs_node_t **out)
@@ -293,6 +298,8 @@ int fs_add_static(const char *path, bool is_dir, const uint8_t *data, size_t siz
         }
         bool final = only_slashes(path);
         fs_node_t *child = find_child(node, name);
+        if (child)
+            child = follow(child);
         if (child == NULL) {
             child = new_node(node, name, final ? is_dir : true, false);
             if (child == NULL) {
@@ -413,13 +420,12 @@ long fs_read(fs_node_t *node, size_t offset, void *buf, size_t len)
     long r;
     if (node->is_dir) {
         r = -EISDIR;
-    } else if (offset >= node->size) {
+    } else if (offset >= node->size || len == 0) {
         r = 0;
     } else {
         if (len > node->size - offset)
             len = node->size - offset;
-        memcpy(buf, node->data + offset, len);
-        r = (long)len;
+        r = node->ops->read(node, offset, buf, len);
     }
     fs_unlock();
     return r;
@@ -433,25 +439,14 @@ long fs_write(fs_node_t *node, size_t offset, const void *buf, size_t len)
         offset = node->size;
     if (node->is_dir) {
         r = -EISDIR;
-    } else if (!node->writable) {
+    } else if (!node->writable || node->ops->write == NULL) {
         r = -EROFS;
     } else if (len == 0) {
         r = 0;
-    } else if (offset >= FS_FILE_MAX) {
-        r = -EFBIG;
     } else {
-        if (len > FS_FILE_MAX - offset)
-            len = FS_FILE_MAX - offset;  // as much as fits
-        r = reserve(node, offset + len);
-        if (r == 0) {
-            if (offset > node->size)
-                memset(node->data + node->size, 0, offset - node->size);
-            memcpy(node->data + offset, buf, len);
-            if (offset + len > node->size)
-                node->size = offset + len;
+        r = node->ops->write(node, offset, buf, len);
+        if (r > 0)
             node->mtime = now();
-            r = (long)len;
-        }
     }
     fs_unlock();
     return r;
@@ -477,6 +472,8 @@ int fs_rename(const char *from, const char *to)
         r = walk(to, &dir, name);
     if (r == 0 && (!node->writable || !node->parent->writable || !dir->writable))
         r = -EROFS;
+    if (r == 0 && fs_root_of(node) != fs_root_of(dir))
+        r = -EXDEV;
 
     fs_node_t *existing = r == 0 ? find_child(dir, name) : NULL;
     if (r == 0 && existing == node) {
@@ -574,14 +571,48 @@ int fs_path_join(const char *cwd, const char *path, char out[FS_PATH_MAX])
 fs_node_t *fs_child(fs_node_t *dir, size_t index)
 {
     fs_lock();
-    fs_node_t *child = dir->is_dir ? dir->children : NULL;
+    fs_node_t *child = dir->is_dir && load(dir) == 0 ? dir->children : NULL;
     while (child && index--)
         child = child->next;
     fs_unlock();
     return child;
 }
 
-size_t fs_space_used(void)
+/* ---- for filesystems ---- */
+
+fs_node_t *fs_new_root(const fs_ops_t *ops, void *priv, bool writable)
 {
-    return space_used;
+    fs_lock();
+    fs_node_t *node = new_node(NULL, "", true, writable);
+    if (node) {
+        node->ops = ops;
+        node->priv = priv;
+    }
+    fs_unlock();
+    return node;
+}
+
+fs_node_t *fs_new_child(fs_node_t *dir, const char *name, bool is_dir)
+{
+    if (strlen(name) >= FS_NAME_MAX)
+        return NULL;
+    return new_node(dir, name, is_dir, dir->writable);
+}
+
+int fs_mount(const char *path, fs_node_t *fs)
+{
+    fs_lock();
+    fs_node_t *dir;
+    int r = walk(path, &dir, NULL);
+    if (r == 0 && !dir->is_dir)
+        r = -ENOTDIR;
+    if (r == 0 && (dir == root || fs_root_of(dir) != root))
+        r = -EBUSY;  // only on directories of the root filesystem, once
+    if (r == 0) {
+        dir->mounted = fs;
+        fs->parent = dir->parent;  // ".." from its root leads out of it
+        strcpy(fs->name, dir->name);
+    }
+    fs_unlock();
+    return r;
 }

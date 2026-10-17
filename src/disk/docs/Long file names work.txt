@@ -1,0 +1,2 @@
+FAT stores names like this one as a chain of "long file name" entries
+next to an 8.3 short name (LONGFI~1.TXT).

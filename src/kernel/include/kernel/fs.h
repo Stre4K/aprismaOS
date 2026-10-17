@@ -1,10 +1,18 @@
 // fs.h
-// The filesystem: one tree of directories and files in memory. At boot it
-// is filled from the initial ramdisk (a ustar archive the bootloader loads
-// next to the kernel, a Multiboot module); those nodes are read-only and
-// point into the archive. /tmp is writable: files made there keep their
-// contents in a kernel heap buffer that grows as they are written. Works
-// on every architecture.
+// The filesystem: one tree of directories and files (the VFS). The tree
+// (tree.c) knows names, paths, mounts and open files for every kind of
+// filesystem; each filesystem keeps the contents behind its fs_ops_t.
+//
+// - memfs (memfs.c) holds files in memory. The root is one: at boot it is
+//   filled from the initial ramdisk (a ustar archive the bootloader loads
+//   next to the kernel, a Multiboot module), read-only and pointing into
+//   the archive. /tmp is writable: files made there keep their contents in
+//   a kernel heap buffer that grows as they are written.
+// - Other filesystems are mounted on a directory: the root of the mounted
+//   one takes its place, and ".." from there leads back out. Their
+//   directories fill themselves in the first time they are used.
+//
+// Works on every architecture.
 //
 // Paths here are absolute ("/etc/motd"; one without a leading '/' starts
 // at the root too). Processes have a current directory: the system calls
@@ -13,8 +21,8 @@
 // from <kernel/abi/syscall.h>.
 //
 // Every function here takes the filesystem lock itself. Code that reads a
-// node's fields or data directly (e.g. loading a program) holds it with
-// fs_lock() while doing so; nothing that can sleep may run under it.
+// node's fields directly holds it with fs_lock() while doing so; nothing
+// that can sleep may run under it (disk reads poll, they do not sleep).
 
 #ifndef __KERNEL_FS_H__
 #define __KERNEL_FS_H__
@@ -26,19 +34,42 @@
 
 #define FS_PATH_MAX  256
 #define FS_NAME_MAX  128                  // one path component
-#define FS_FILE_MAX  (4u * 1024 * 1024)   // largest writable file
-#define FS_SPACE_MAX (16u * 1024 * 1024)  // all writable files together
+#define FS_FILE_MAX  (4u * 1024 * 1024)   // largest writable memfs file
+#define FS_SPACE_MAX (16u * 1024 * 1024)  // all writable memfs files together
+
+struct fs_node;
+
+// What a filesystem does for its nodes. The tree has already checked the
+// request (a file, not a directory; writable; ...) and holds the lock.
+typedef struct fs_ops {
+    const char *name;  // "memfs", "fat", ...
+    // Fill in a directory's entries (with fs_new_child) the first time it
+    // is looked into; NULL if directories are always complete
+    int (*load_dir)(struct fs_node *dir);
+    // Read up to `len` bytes at `offset` (which is inside the file)
+    long (*read)(struct fs_node *node, size_t offset, void *buf, size_t len);
+    // Write at `offset` (maybe past the end: the gap reads as zeros);
+    // NULL for a read-only filesystem
+    long (*write)(struct fs_node *node, size_t offset, const void *buf, size_t len);
+    int (*truncate)(struct fs_node *node, size_t size);
+    // The node is being freed: free what the filesystem keeps for it
+    void (*release)(struct fs_node *node);
+} fs_ops_t;
 
 typedef struct fs_node {
     char name[FS_NAME_MAX];   // "" for the root
     bool is_dir;
-    bool writable;            // in a writable directory: may change, be removed, hold new entries
-    uint8_t *data;            // file contents
+    bool writable;            // may change, be removed and (directories) hold new entries
+    const fs_ops_t *ops;      // the filesystem it belongs to
+    void *priv;               // what that filesystem keeps for it
+    uint8_t *data;            // memfs: file contents
     size_t size;
-    size_t capacity;          // bytes allocated for data; 0 if it points into the ramdisk
+    size_t capacity;          // memfs: bytes allocated for data; 0 if it points into the ramdisk
     struct fs_node *parent;   // the root is its own parent
     struct fs_node *children; // directories: entries in the order they were made
     struct fs_node *next;     // next entry of the parent
+    struct fs_node *mounted;  // a mount point: the root of the filesystem mounted on it
+    bool loaded;              // directories: load_dir has filled them in
     uint64_t mtime;           // last change, seconds since 1970 (UTC)
     int open_count;           // open files using it
     bool removed;             // removed while open: freed with the last close
@@ -102,7 +133,8 @@ int fs_truncate(fs_node_t *node, size_t size);
 
 // Move or rename: `to` names the new place. A file may replace a file
 // there (which is removed); otherwise -EEXIST. -EROFS unless both places
-// are writable, -EINVAL to move a directory into itself.
+// are writable, -EINVAL to move a directory into itself, -EXDEV to move
+// to another filesystem.
 int fs_rename(const char *from, const char *to);
 
 // The absolute, normalized form of `path` (relative to `cwd`, itself
@@ -110,10 +142,30 @@ int fs_rename(const char *from, const char *to);
 // "/tmp/a/../b" becomes "/tmp/b". 0 or -ENAMETOOLONG.
 int fs_path_join(const char *cwd, const char *path, char out[FS_PATH_MAX]);
 
-// Entry number `index` of a directory (in the order they were made), or NULL
+// Entry number `index` of a directory (in the order they were made), or
+// NULL. A mount point is listed as itself; looking it up gives the root
+// of what is mounted there.
 fs_node_t *fs_child(fs_node_t *dir, size_t index);
 
-// Bytes allocated for writable files (counted against FS_SPACE_MAX)
+/* ---- for filesystems ---- */
+
+// A root for a new filesystem, to be mounted (NULL when out of memory)
+fs_node_t *fs_new_root(const fs_ops_t *ops, void *priv, bool writable);
+
+// Mount a filesystem's root on an existing directory (the mount point),
+// which it then stands for: -ENOENT, -ENOTDIR, -EBUSY if something is
+// mounted there already
+int fs_mount(const char *path, fs_node_t *root);
+
+// An entry for load_dir (it inherits the directory's filesystem and
+// writability), or NULL when out of memory. Called with the lock held.
+fs_node_t *fs_new_child(fs_node_t *dir, const char *name, bool is_dir);
+
+/* ---- memfs (memfs.c) ---- */
+
+extern const fs_ops_t memfs_ops;
+
+// Bytes allocated for writable memfs files (counted against FS_SPACE_MAX)
 size_t fs_space_used(void);
 
 void fs_lock(void);
