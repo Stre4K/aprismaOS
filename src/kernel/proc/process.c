@@ -10,6 +10,7 @@
 
 #ifdef CONFIG_USERMODE
 
+#include <kernel/abi/syscall.h>
 #include <kernel/arch/irq.h>
 #include <kernel/arch/memlayout.h>
 #include <kernel/arch/syscall.h>
@@ -217,10 +218,12 @@ process_t *process_spawn_args(const char *name, int argc, const char *const argv
 
     // Listed before its thread can run (and exit, which unlists it)
     list_add(p);
-    if (thread_create_in(p->name, process_start, p, p->space, p) == NULL) {
+    thread_t *thread = thread_create_in(p->name, process_start, p, p->space, p);
+    if (thread == NULL) {
         list_remove(p);
         goto fail;
     }
+    p->thread = thread;
 
     return p;
 
@@ -268,17 +271,43 @@ process_t *process_take_child(process_t *parent, int pid)
     return NULL;
 }
 
+// Mark a process to be killed when it next returns to user mode, and wake
+// it if it waits somewhere that lets it (call with interrupts disabled)
+static void mark_for_kill(process_t *p, const char *reason)
+{
+    if (!p->kill_pending)
+        p->kill_reason = reason;
+    p->kill_pending = true;
+    if (p->sleeping_on)
+        wait_queue_wake_all(p->sleeping_on);
+    if (p->thread)
+        thread_wake_sleeper(p->thread);
+}
+
 void process_interrupt_group(int pgid)
 {
     unsigned long flags = irq_save();
     for (process_t *p = all_processes; p; p = p->all_next) {
-        if (p->pgid == pgid) {
-            p->kill_pending = true;
-            if (p->sleeping_on)
-                wait_queue_wake_all(p->sleeping_on);
+        if (p->pgid == pgid)
+            mark_for_kill(p, "interrupted (Ctrl+C)");
+    }
+    irq_restore(flags);
+}
+
+int process_kill_pid(int pid)
+{
+    if (pid == 0)
+        return -EINVAL;
+    int found = 0;
+    unsigned long flags = irq_save();
+    for (process_t *p = all_processes; p; p = p->all_next) {
+        if (pid > 0 ? p->pid == pid : p->pgid == -pid) {
+            mark_for_kill(p, "terminated (kill)");
+            found++;
         }
     }
     irq_restore(flags);
+    return found ? 0 : -ESRCH;
 }
 
 void process_sleep_on(wait_queue_t *q)
@@ -295,7 +324,8 @@ void process_check_kill(regs_t *regs)
 {
     process_t *p = process_current();
     if (p && p->kill_pending)
-        process_kill("interrupted (Ctrl+C)", regs);
+        process_kill(p->kill_reason ? p->kill_reason : "interrupted", NULL);
+    (void)regs;
 }
 
 int process_wait_info(process_t *p, bool *killed)
@@ -357,8 +387,11 @@ void process_exit(int code)
 void process_kill(const char *reason, regs_t *regs)
 {
     process_t *p = process_current();
-    printk("[%d %s] killed: %s at 0x%llx\n", p->pid, p->name, reason,
-           (unsigned long long)REGS_PC(regs));
+    if (regs)
+        printk("[%d %s] killed: %s at 0x%llx\n", p->pid, p->name, reason,
+               (unsigned long long)REGS_PC(regs));
+    else
+        printk("[%d %s] killed: %s\n", p->pid, p->name, reason);
     p->killed = true;
     process_exit(-1);
 }

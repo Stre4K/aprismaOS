@@ -511,15 +511,21 @@ out:
     return result;
 }
 
-static int64_t sys_wait(uint64_t pid, uint64_t user_code)
+static int64_t sys_wait(uint64_t pid, uint64_t user_code, uint64_t flags)
 {
     if (user_code && !user_buffer_ok(user_code, sizeof(int), true))
         return -EFAULT;
+    if (flags & ~(uint64_t)WAIT_NOHANG)
+        return -EINVAL;
 
     process_t *self = process_current();
     process_t *child = process_take_child(self, (int)pid);
     if (child == NULL)
         return -ECHILD;
+    if ((flags & WAIT_NOHANG) && !child->exited) {
+        process_add_child(self, child);  // still running: keep it for later
+        return -EAGAIN;
+    }
 
     // Ctrl+C goes to the child's process group while we wait, if ours had
     // the console (or nobody did)
@@ -565,7 +571,7 @@ void syscall_dispatch(regs_t *regs)
             result = sys_spawn(SYSCALL_ARG0(regs), SYSCALL_ARG1(regs), SYSCALL_ARG2(regs));
             break;
         case SYS_WAIT:
-            result = sys_wait(SYSCALL_ARG0(regs), SYSCALL_ARG1(regs));
+            result = sys_wait(SYSCALL_ARG0(regs), SYSCALL_ARG1(regs), SYSCALL_ARG2(regs));
             break;
         case SYS_MKDIR:
             result = path_call(SYSCALL_ARG0(regs), make_dir);
@@ -610,8 +616,12 @@ void syscall_dispatch(regs_t *regs)
             result = process_current()->pid;
             break;
         case SYS_SLEEP:
-            thread_sleep((uint32_t)SYSCALL_ARG0(regs));
-            result = 0;
+            // kill() and Ctrl+C wake a sleeping process early
+            thread_sleep_unless((uint32_t)SYSCALL_ARG0(regs), &process_current()->kill_pending);
+            result = process_current()->kill_pending ? -EINTR : 0;
+            break;
+        case SYS_KILL:
+            result = process_kill_pid((int)SYSCALL_ARG0(regs));
             break;
         case SYS_YIELD:
             thread_yield();

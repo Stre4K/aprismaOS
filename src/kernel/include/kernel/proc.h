@@ -34,7 +34,8 @@ typedef struct process {
     int exit_code;
     bool exited;
     bool killed;               // ended by a fault or Ctrl+C, not by exit()
-    volatile bool kill_pending; // Ctrl+C: kill when it next returns to user mode
+    volatile bool kill_pending; // Ctrl+C or kill(): kill when it next returns to user mode
+    const char *kill_reason;   // what kill_pending is for, for the message
     int pgid;                  // process group: Ctrl+C ends the foreground group
     wait_queue_t *sleeping_on; // where process_sleep_on() blocked it, or NULL
     struct thread *waiter;     // thread blocked in process_wait()
@@ -44,6 +45,7 @@ typedef struct process {
     struct process *children;  // started with the spawn system call, not yet waited for
     struct process *next_sibling;
     struct process *all_next;  // list of processes that have not exited
+    struct thread *thread;     // the thread running it
 } process_t;
 
 // How to start a process. NULL options mean stdin, stdout and stderr on
@@ -88,8 +90,13 @@ process_t *process_take_child(process_t *parent, int pid);  // NULL if not a chi
 void process_check_kill(regs_t *regs);
 
 // Ctrl+C: every process in the group is killed when it next returns to
-// user mode; one waiting in process_sleep_on() is woken for that
+// user mode; one waiting in process_sleep_on() or sleeping is woken for it
 void process_interrupt_group(int pgid);
+
+// The kill system call: pid > 0 kills that process, pid < 0 the process
+// group -pid, the same way. 0, -ESRCH if there is no such process or
+// group, -EINVAL for 0.
+int process_kill_pid(int pid);
 
 // Block on `q` like wait_queue_sleep() (interrupts disabled), but let
 // process_interrupt_group() wake the process. The caller re-checks
@@ -102,7 +109,8 @@ process_t *process_current(void);
 // End the current process
 __attribute__((noreturn)) void process_exit(int code);
 
-// End the current process after a fault in user mode
+// End the current process after a fault in user mode (regs: where it
+// happened, printed; NULL for Ctrl+C and kill())
 __attribute__((noreturn)) void process_kill(const char *reason, regs_t *regs);
 
 // Called by the scheduler when a process's thread is freed
