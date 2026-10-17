@@ -9,19 +9,25 @@
 //   a >> file      ... adding to the end of the file
 //   a 2> file      a's error messages go to the file (2>> adds, 2>&1 sends
 //                  them where its output goes)
+//   a &            run in the background: the prompt comes back at once
+//
+// Background jobs get no keyboard input (an empty input unless "<" gives
+// one), are not ended by Ctrl+C, and are reported when they end, before
+// the next prompt. jobs lists them, fg waits for one, kill ends one.
 //
 // Only /tmp is writable. Prompts are only shown when the input is the
 // keyboard, so "sh < script" or "... | sh" runs commands quietly.
 //
 // All programs of a pipeline form one process group, so Ctrl+C ends all of
 // them. Relative paths start at the current directory. Built in:
-// cd [dir], pwd, exit [code], help. Ctrl+C at the prompt starts a new
+// cd [dir], pwd, jobs, fg [%job], kill %job|pid..., exit [code], help. Ctrl+C at the prompt starts a new
 // line, Ctrl+D at the prompt exits the shell.
 #include "ulib.h"
 
 #define LINE_MAX   256
 #define WORDS_MAX  32  // the kernel's limit on arguments
 #define STAGES_MAX 8   // programs in one pipeline
+#define JOBS_MAX   8   // background jobs at once
 
 typedef struct {
     char *argv[WORDS_MAX + 1];
@@ -94,6 +100,7 @@ typedef struct {
     char *input;       // "< file", or NULL
     char *output;      // "> file" or ">> file", or NULL
     int append;        // ">>"
+    int background;    // the line ends in '&'
 } redirect_t;
 
 // Split a line into commands; returns how many (0 for an empty line, -1
@@ -107,7 +114,7 @@ static int parse(const char *line, command_t cmds[STAGES_MAX], redirect_t *redir
     int output_stage = -1;   // the program "> file" belongs to
     new_command(cmd);
     redir->input = redir->output = 0;
-    redir->append = 0;
+    redir->append = redir->background = 0;
 
     for (const char *in = line;;) {
         while (*in == ' ' || *in == '\t')
@@ -142,6 +149,20 @@ static int parse(const char *line, command_t cmds[STAGES_MAX], redirect_t *redir
             in++;
             continue;
         }
+        // '&' at the end: in the background
+        if (c == '&') {
+            const char *rest = in + 1;
+            while (*rest == ' ' || *rest == '\t')
+                rest++;
+            if (*rest || redir->background) {
+                error("'&' can only end a line", "");
+                return -1;
+            }
+            redir->background = 1;
+            in = rest;
+            continue;
+        }
+
         // "2>" at the start of a word: where this program's errors go
         if (c == '2' && in[1] == '>') {
             if (expect_file) {
@@ -188,7 +209,7 @@ static int parse(const char *line, command_t cmds[STAGES_MAX], redirect_t *redir
 
         // A word, up to an unquoted space or operator
         char *word = out;
-        while (*in && *in != ' ' && *in != '\t' && *in != '|' && *in != '<' && *in != '>') {
+        while (*in && *in != ' ' && *in != '\t' && *in != '|' && *in != '<' && *in != '>' && *in != '&') {
             if (*in == '"' || *in == '\'') {
                 char quote = *in++;
                 while (*in && *in != quote)
@@ -239,10 +260,14 @@ static void help(void)
           "  a > file     a writes the file, only in /tmp (e.g. 'ls /bin > /tmp/list')\n"
           "  a >> file    a adds to the end of the file\n"
           "  a 2> file    a's error messages go to the file (2>> adds, 2>&1 joins the output)\n"
+          "  a &          run a in the background (no keyboard input, Ctrl+C leaves it alone)\n"
           "Paths not starting with / are relative to the current directory.\n"
           "Built in:\n"
           "  cd [dir]     change the current directory (to / without dir)\n"
           "  pwd          show the current directory\n"
+          "  jobs         list the background jobs\n"
+          "  fg [%n]      wait for a background job (the newest without %n)\n"
+          "  kill %n|pid  end a job or a process\n"
           "  exit [code]  leave the shell\n"
           "  help         show this text\n");
 }
@@ -271,14 +296,184 @@ static void file_error(const char *path, long code)
         error(path, ": no such file or directory");
 }
 
-static void run(command_t cmds[], int count, const redirect_t *redir)
-{
+/* ---- jobs ---- */
+
+typedef struct {
+    int id;                       // [1], [2], ...; 0 for a free slot
+    int count;                    // programs started
+    int pgid;
     long pids[STAGES_MAX];
-    const char *names[STAGES_MAX];
+    char names[STAGES_MAX][32];   // copies: the words are reused by the next line
+    int done[STAGES_MAX];
+    long hows[STAGES_MAX];        // wait()'s result for each
+    int codes[STAGES_MAX];
+    char text[LINE_MAX];          // the command, for jobs and reports
+} job_t;
+
+static job_t jobs[JOBS_MAX];
+
+// Collect the programs of a job that have ended (waiting for all of them
+// if `block`); returns 1 once every one has
+static int collect(job_t *job, int block)
+{
+    int all = 1;
+    for (int i = 0; i < job->count; i++) {
+        if (job->done[i])
+            continue;
+        long how = block ? wait((int)job->pids[i], &job->codes[i])
+                         : waitpid((int)job->pids[i], &job->codes[i], WAIT_NOHANG);
+        if (how == -EAGAIN) {
+            all = 0;
+            continue;
+        }
+        job->done[i] = 1;
+        job->hows[i] = how == -ECHILD ? 0 : how;
+    }
+    return all;
+}
+
+// After a foreground job: the programs that failed. A killed program was
+// already reported by the kernel; stay quiet after exit code 0.
+static void report_codes(const job_t *job)
+{
+    for (int i = 0; i < job->count; i++) {
+        if (job->hows[i] == 0 && job->codes[i] != 0) {
+            eprint("sh: ");
+            eprint(job->names[i]);
+            eprint(" exited with code ");
+            eprint_int(job->codes[i]);
+            eprint("\n");
+        }
+    }
+}
+
+// "[1] done  sleep 1", "[1] exit 2  cat nope" or "[1] killed  ..."
+static void report_job(const job_t *job)
+{
+    int killed = 0, code = 0;
+    for (int i = 0; i < job->count; i++) {
+        killed |= job->hows[i] == WAIT_KILLED;
+        if (job->hows[i] == 0 && job->codes[i] != 0)
+            code = job->codes[i];
+    }
+    print("[");
+    print_int(job->id);
+    if (killed) {
+        print("] killed  ");
+    } else if (code) {
+        print("] exit ");
+        print_int(code);
+        print("  ");
+    } else {
+        print("] done  ");
+    }
+    print(job->text);
+    print("\n");
+}
+
+// Report and forget the background jobs that have ended
+static void reap_jobs(void)
+{
+    for (int i = 0; i < JOBS_MAX; i++) {
+        if (jobs[i].id && collect(&jobs[i], 0)) {
+            report_job(&jobs[i]);
+            jobs[i].id = 0;
+        }
+    }
+}
+
+// The job for "%n" (or the newest for NULL), or NULL
+static job_t *find_job(const char *ref)
+{
+    job_t *newest = 0;
+    for (int i = 0; i < JOBS_MAX; i++) {
+        if (!jobs[i].id)
+            continue;
+        if (ref == 0) {
+            if (!newest || jobs[i].id > newest->id)
+                newest = &jobs[i];
+        } else if (ref[0] == '%' && strcmp(ref + 1, "") != 0) {
+            int id = 0;
+            for (const char *p = ref + 1; *p >= '0' && *p <= '9'; p++)
+                id = id * 10 + (*p - '0');
+            if (jobs[i].id == id)
+                return &jobs[i];
+        }
+    }
+    return newest;
+}
+
+static void builtin_jobs(void)
+{
+    reap_jobs();
+    for (int i = 0; i < JOBS_MAX; i++) {
+        if (jobs[i].id) {
+            print("[");
+            print_int(jobs[i].id);
+            print("] running  ");
+            print(jobs[i].text);
+            print("\n");
+        }
+    }
+}
+
+static void builtin_fg(const char *ref)
+{
+    job_t *job = find_job(ref);
+    if (job == 0) {
+        error(ref ? ref : "fg", ": no such job");
+        return;
+    }
+    print(job->text);
+    print("\n");
+    collect(job, 1);  // wait() also hands it the keyboard and Ctrl+C
+    report_codes(job);
+    job->id = 0;
+}
+
+static void builtin_kill(char **args, int argc)
+{
+    if (argc < 2) {
+        error("usage: kill %job|pid...", "");
+        return;
+    }
+    for (int i = 1; i < argc; i++) {
+        long r;
+        if (args[i][0] == '%') {
+            job_t *job = find_job(args[i]);
+            r = job ? kill(-job->pgid) : -ESRCH;
+        } else {
+            int pid = 0;
+            for (const char *p = args[i]; *p >= '0' && *p <= '9'; p++)
+                pid = pid * 10 + (*p - '0');
+            r = pid > 0 ? kill(pid) : -ESRCH;
+        }
+        if (r < 0)
+            error(args[i], args[i][0] == '%' ? ": no such job" : ": no such process");
+    }
+}
+
+/* ---- running ---- */
+
+static void run(command_t cmds[], int count, const redirect_t *redir, const char *line)
+{
+    static job_t job;
+    memset(&job, 0, sizeof(job));
+    long *pids = job.pids;
     int started = 0;
     int pgid = 0;  // the first program started leads the group
 
     int in = 0;  // stdin of the next program
+    if (redir->background && !redir->input) {
+        // An empty input, like /dev/null elsewhere: a pipe nobody writes
+        int ends[2];
+        if (pipe(ends) == 0) {
+            close(ends[1]);
+            in = ends[0];
+        } else {
+            in = -1;  // no input at all
+        }
+    }
     if (redir->input) {
         long fd = open(redir->input, O_RDONLY);
         if (fd < 0) {
@@ -292,7 +487,7 @@ static void run(command_t cmds[], int count, const redirect_t *redir)
         long fd = open(redir->output, O_WRONLY | O_CREAT | (redir->append ? O_APPEND : O_TRUNC));
         if (fd < 0) {
             file_error(redir->output, fd);
-            if (in != 0)
+            if (in > 0)
                 close(in);
             return;
         }
@@ -333,7 +528,7 @@ static void run(command_t cmds[], int count, const redirect_t *redir)
         // The children have their own copies now. Closing ours means a
         // reader sees the end once its writer exits, and a writer gets an
         // error once its reader is gone.
-        if (in != 0)
+        if (in > 0)
             close(in);
         if (out != 1)
             close(out);
@@ -347,34 +542,56 @@ static void run(command_t cmds[], int count, const redirect_t *redir)
             continue;
         }
         pids[started] = pid;
-        names[started++] = cmds[i].argv[0];
+        size_t len = strlen(cmds[i].argv[0]);
+        if (len > sizeof(job.names[0]) - 1)
+            len = sizeof(job.names[0]) - 1;
+        memcpy(job.names[started], cmds[i].argv[0], len);
+        job.names[started++][len] = '\0';
         if (pgid == 0)
             pgid = (int)pid;
     }
-    if (in != 0)
+    if (in > 0)
         close(in);  // a pipe left over after an error
     if (last_out != 1)
         close(last_out);  // the pipeline stopped before its last program
+    if (started == 0)
+        return;
+    job.count = started;
+    job.pgid = pgid;
+
+    if (redir->background) {
+        for (int i = 0; i < JOBS_MAX; i++) {
+            if (jobs[i].id)
+                continue;
+            // The lowest free number, like other shells
+            int id = 1;
+            for (int taken = 1; taken;) {
+                taken = 0;
+                for (int k = 0; k < JOBS_MAX; k++)
+                    taken |= jobs[k].id == id;
+                id += taken;
+            }
+            jobs[i] = job;
+            jobs[i].id = id;
+            size_t len = strlen(line);
+            while (len && (line[len - 1] == ' ' || line[len - 1] == '&'))
+                len--;  // "sleep 5 &" is shown as "sleep 5"
+            memcpy(jobs[i].text, line, len);
+            jobs[i].text[len] = '\0';
+            print("[");
+            print_int(id);
+            print("] ");
+            print_int(pgid);
+            print("\n");
+            return;
+        }
+        error("too many background jobs; waiting for this one", "");
+    }
 
     // Wait for all of them before reporting, so a report cannot land in
     // the middle of another program's output
-    long hows[STAGES_MAX];
-    int codes[STAGES_MAX];
-    for (int i = 0; i < started; i++)
-        hows[i] = wait((int)pids[i], &codes[i]);
-
-    for (int i = 0; i < started; i++) {
-        int code = codes[i];
-        // A killed program was already reported by the kernel; stay quiet
-        // after a normal exit with code 0
-        if (hows[i] == 0 && code != 0) {
-            eprint("sh: ");
-            eprint(names[i]);
-            eprint(" exited with code ");
-            eprint_int(code);
-            eprint("\n");
-        }
-    }
+    collect(&job, 1);
+    report_codes(&job);
 }
 
 int main(void)
@@ -385,6 +602,7 @@ int main(void)
     int interactive = isatty(0);
 
     for (;;) {
+        reap_jobs();
         if (interactive)
             print("$ ");
         int got = read_line(line);
@@ -402,9 +620,11 @@ int main(void)
 
         char *name = cmds[0].argv[0];
         int builtin = strcmp(name, "exit") == 0 || strcmp(name, "help") == 0 ||
-                      strcmp(name, "cd") == 0 || strcmp(name, "pwd") == 0;
-        if (builtin && (count > 1 || redir.input || redir.output || cmds[0].err_file || cmds[0].err_to_out)) {
-            error(name, ": built-in commands cannot be part of a pipeline");
+                      strcmp(name, "cd") == 0 || strcmp(name, "pwd") == 0 ||
+                      strcmp(name, "jobs") == 0 || strcmp(name, "fg") == 0 || strcmp(name, "kill") == 0;
+        if (builtin && (count > 1 || redir.input || redir.output || redir.background ||
+                        cmds[0].err_file || cmds[0].err_to_out)) {
+            error(name, ": built-in commands cannot be part of a pipeline, redirected or run with &");
             continue;
         }
         if (strcmp(name, "exit") == 0)
@@ -416,6 +636,12 @@ int main(void)
             long r = chdir(dir);
             if (r < 0)
                 error(dir, r == -ENOTDIR ? ": not a directory" : ": no such directory");
+        } else if (strcmp(name, "jobs") == 0) {
+            builtin_jobs();
+        } else if (strcmp(name, "fg") == 0) {
+            builtin_fg(cmds[0].argc > 1 ? cmds[0].argv[1] : 0);
+        } else if (strcmp(name, "kill") == 0) {
+            builtin_kill(cmds[0].argv, cmds[0].argc);
         } else if (strcmp(name, "pwd") == 0) {
             char cwd[256];
             if (getcwd(cwd, sizeof(cwd)) >= 0) {
@@ -423,7 +649,7 @@ int main(void)
                 print("\n");
             }
         } else {
-            run(cmds, count, &redir);
+            run(cmds, count, &redir, line);
         }
     }
 }

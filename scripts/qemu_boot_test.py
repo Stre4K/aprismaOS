@@ -38,7 +38,7 @@ FAILURE_PATTERNS = [r"KERNEL PANIC", r"Unhandled CPU exception", r"Unhandled int
 # QEMU sendkey names for characters that are not plain letters or digits
 KEY_NAMES = {" ": "spc", "-": "minus", ".": "dot", "/": "slash", "=": "equal", ",": "comma",
              "'": "apostrophe", "\"": "shift-apostrophe", "|": "shift-backslash", "<": "shift-comma",
-             ">": "shift-dot", "&": "shift-7"}
+             ">": "shift-dot", "&": "shift-7", "%": "shift-5"}
 
 
 class TestFailure(Exception):

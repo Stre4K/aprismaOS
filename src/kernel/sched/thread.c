@@ -314,7 +314,7 @@ void thread_yield(void)
     irq_restore(flags);
 }
 
-void thread_sleep(uint32_t ms)
+void thread_sleep_unless(uint32_t ms, volatile bool *cancel)
 {
     check_can_sleep("thread_sleep with preemption disabled");
 
@@ -325,9 +325,26 @@ void thread_sleep(uint32_t ms)
     }
 
     unsigned long flags = irq_save();
-    current->state = THREAD_SLEEPING;
-    current->wake_tick = pit_get_ticks() + ticks;
-    schedule();
+    if (cancel == NULL || !*cancel) {
+        current->state = THREAD_SLEEPING;
+        current->wake_tick = pit_get_ticks() + ticks;
+        schedule();
+    }
+    irq_restore(flags);
+}
+
+void thread_sleep(uint32_t ms)
+{
+    thread_sleep_unless(ms, NULL);
+}
+
+void thread_wake_sleeper(thread_t *t)
+{
+    unsigned long flags = irq_save();
+    if (t->state == THREAD_SLEEPING) {
+        t->state = THREAD_READY;
+        run_queue_push(t);
+    }
     irq_restore(flags);
 }
 

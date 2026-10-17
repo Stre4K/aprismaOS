@@ -87,6 +87,46 @@ static void check_wait(void)
     check(wait((int)pid, 0) == 0, "the child is still there after refused waits");
 }
 
+static long start_sleep(const char *seconds, int pgid)
+{
+    char *args[] = { "sleep", (char *)seconds, 0 };
+    spawn_options_t options = { .fd = { 0, 1, 2 }, .pgid = pgid };
+    return spawn("sleep", args, &options);
+}
+
+static void check_kill(void)
+{
+    int code;
+    check(sleep(10) == 0, "sleep returns 0");
+
+    // A sleeping child is woken to be killed (or this waits 100 s)
+    long pid = start_sleep("100", 0);
+    check(pid > 0 && waitpid((int)pid, &code, WAIT_NOHANG) == -EAGAIN, "WAIT_NOHANG while it runs");
+    check(kill((int)pid) == 0, "kill it");
+    check(wait((int)pid, &code) == WAIT_KILLED, "it was killed while sleeping");
+    check(waitpid((int)pid, &code, WAIT_NOHANG) == -ECHILD, "and is gone");
+
+    // A whole group
+    long leader = start_sleep("100", 0);
+    long member = start_sleep("100", (int)leader);
+    check(kill(-(int)leader) == 0, "kill a process group");
+    check(wait((int)leader, &code) == WAIT_KILLED && wait((int)member, &code) == WAIT_KILLED, "every member was killed");
+
+    check(kill(99999) == -ESRCH && kill(-99999) == -ESRCH, "kill nobody");
+    check(kill(0) == -EINVAL, "kill 0");
+
+    // WAIT_NOHANG collects a child that has ended
+    pid = spawn("exitcode", 0, 0);
+    long how = -EAGAIN;
+    for (int i = 0; i < 1000 && how == -EAGAIN; i++) {
+        how = waitpid((int)pid, &code, WAIT_NOHANG);
+        if (how == -EAGAIN)
+            sleep(5);
+    }
+    check(how == 0 && code == 42, "WAIT_NOHANG after it ended");
+    check(waitpid((int)getpid(), &code, 4) == -EINVAL, "unknown wait flags");
+}
+
 static void check_readdir(void)
 {
     dirent_t entry;
@@ -110,6 +150,7 @@ int main(void)
 {
     check_spawn();
     check_wait();
+    check_kill();
     check_readdir();
 
     // Exit with a child nobody waits for

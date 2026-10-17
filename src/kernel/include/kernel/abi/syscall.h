@@ -15,7 +15,7 @@
 #define SYS_OPEN    6   // open(const char *path, int flags) -> file descriptor
 #define SYS_CLOSE   7   // close(int fd) -> 0
 #define SYS_SPAWN   8   // spawn(const char *path, char *const argv[], const spawn_options_t *options) -> pid
-#define SYS_WAIT    9   // wait(int pid, int *code) -> 0, or WAIT_KILLED if it was killed
+#define SYS_WAIT    9   // wait(int pid, int *code, int flags) -> 0, or WAIT_KILLED if it was killed
 
 // spawn: `path` is looked up in /bin unless it contains a '/'; argv is a
 // NULL-terminated array whose first entry becomes the child's argv[0]
@@ -26,8 +26,10 @@
 // its children's.
 // wait: blocks until the child `pid` ends and stores its exit code in
 // *code (if code is not NULL). Every child can be waited for once. While
-// the caller waits, Ctrl+C goes to the child.
-#define WAIT_KILLED 1   // ended by a fault or Ctrl+C rather than exit()
+// the caller waits, Ctrl+C goes to the child. With WAIT_NOHANG in flags it
+// does not block: -EAGAIN while the child is still running.
+#define WAIT_KILLED 1   // ended by a fault, Ctrl+C or kill() rather than exit()
+#define WAIT_NOHANG 1   // flag: only ask, do not wait
 
 typedef struct {
     int fd[3];  // the caller's descriptors that become the child's 0, 1 and 2 (-1: not open)
@@ -49,6 +51,12 @@ typedef struct {
 #define SYS_RENAME  20  // rename(const char *from, const char *to) -> 0
 #define SYS_CHDIR   21  // chdir(const char *path) -> 0
 #define SYS_GETCWD  22  // getcwd(char *buf, size_t size) -> length of the path
+#define SYS_KILL    23  // kill(int pid) -> 0; a negative pid kills the process group -pid
+
+// kill ends a process (or every process of a group) the way Ctrl+C does:
+// when it next returns to user mode, waking it if it sleeps or waits for
+// input or a pipe. -ESRCH if there is none. sleep returns -EINTR early
+// when the process is being killed.
 
 // Every path given to a system call that does not start with '/' is
 // relative to the process's current directory (chdir; children start in
@@ -105,11 +113,13 @@ typedef struct {
 // Errors are returned as negative values
 #define EPERM   1   // not allowed
 #define ENOENT  2   // no such file or directory
+#define ESRCH   3   // no such process
 #define EINTR   4   // interrupted (the process is being killed)
 #define E2BIG   7   // argument list too long
 #define ENOEXEC 8   // not a valid program (or out of memory loading it)
 #define EBADF   9   // bad file descriptor
 #define ECHILD 10   // no such child process (or already waited for)
+#define EAGAIN 11   // not yet (wait with WAIT_NOHANG)
 #define ENOMEM 12   // out of memory
 #define EEXIST 17   // already exists
 #define EFAULT 14   // bad address

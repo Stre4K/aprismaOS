@@ -28,7 +28,7 @@ KEY_DELAY = 0.03  # seconds between key events
 
 # QMP qcodes for characters that are not plain lowercase letters or digits
 QCODES = {" ": "spc", "-": "minus", ".": "dot", "/": "slash", "=": "equal", ",": "comma", "'": "apostrophe"}
-SHIFTED = {'"': "apostrophe", "|": "backslash", "<": "comma", ">": "dot", "&": "7"}
+SHIFTED = {'"': "apostrophe", "|": "backslash", "<": "comma", ">": "dot", "&": "7", "%": "5"}
 
 
 class Qmp:
@@ -441,6 +441,52 @@ def cd_and_relative_paths(vm):
 
 
 @user_shell
+def ctrl_c_ends_a_sleep_at_once(vm):
+    vm.qmp.type("sleep 60\n")
+    vm.settle()
+    vm.qmp.tap("ctrl", "c")
+    vm.wait(r"\[\d+ sleep\] killed: interrupted \(Ctrl\+C\)\n\$$")
+
+
+@user_shell
+def background_jobs_survive_ctrl_c_and_can_be_killed(vm):
+    vm.qmp.type("sleep 60 &\n")
+    vm.wait(r"(?m)^\[1\] \d+$")
+    vm.qmp.type("forever\n")
+    vm.settle()
+    vm.qmp.tap("ctrl", "c")  # only the foreground program
+    vm.wait(r"\[\d+ forever\] killed: interrupted")
+    vm.qmp.type("jobs\n")
+    vm.wait(r"(?m)^\[1\] running  sleep 60$")
+    vm.qmp.type("kill %1\n")
+    vm.wait(r"\[\d+ sleep\] killed: terminated \(kill\)")
+    vm.qmp.type("jobs\n")
+    vm.wait(r"(?m)^\[1\] killed  sleep 60$")
+    # Background jobs read an empty input, never the keyboard
+    vm.qmp.type("cat &\n")
+    vm.wait(r"(?m)^\[1\] \d+$")
+    vm.settle()
+    vm.qmp.type("jobs\n")
+    vm.wait(r"(?m)^\[1\] done  cat$")
+    # A job that ends is reported before the next prompt, without "jobs"
+    vm.qmp.type("sleep 0.1 &\n")
+    vm.wait(r"(?m)^\[1\] \d+$")
+    vm.settle()
+    vm.qmp.type("echo next\n")
+    vm.wait(r"(?m)^next\n\[1\] done  sleep 0.1\n\$$")
+
+
+@user_shell
+def fg_gives_a_job_the_keyboard_and_ctrl_c(vm):
+    vm.qmp.type("sleep 60 &\n")
+    vm.wait(r"(?m)^\[1\] \d+$")
+    vm.qmp.type("fg %1\n")
+    vm.wait(r"(?m)^sleep 60$")
+    vm.qmp.tap("ctrl", "c")
+    vm.wait(r"\[\d+ sleep\] killed: interrupted \(Ctrl\+C\)\n\$$")
+
+
+@user_shell
 def ctrl_c_at_the_user_shell_prompt_gives_a_new_prompt(vm):
     vm.qmp.type("echo bad")
     vm.qmp.tap("ctrl", "c")
@@ -518,6 +564,9 @@ SCENARIOS = [
     typed_lines_go_into_a_file,
     a_script_runs_without_prompts,
     cd_and_relative_paths,
+    ctrl_c_ends_a_sleep_at_once,
+    background_jobs_survive_ctrl_c_and_can_be_killed,
+    fg_gives_a_job_the_keyboard_and_ctrl_c,
     ctrl_c_at_the_user_shell_prompt_gives_a_new_prompt,
     ctrl_c_ends_the_program_not_the_user_shell,
     ctrl_c_in_a_nested_shell_ends_only_its_program,

@@ -68,12 +68,20 @@ thread_t *thread_create_in(const char *name, void (*entry)(void *), void *arg,
 thread_t *thread_current(void);
 void thread_yield(void);
 void thread_sleep(uint32_t ms);
+
+// Sleep unless *cancel is set, checked with interrupts disabled so that
+// whoever sets it and then calls thread_wake_sleeper() cannot be missed
+void thread_sleep_unless(uint32_t ms, volatile bool *cancel);
 __attribute__((noreturn)) void thread_exit(void);
 
 // Block the current thread until thread_unblock(). Call with interrupts
 // disabled (so a wakeup cannot be missed); returns with them disabled.
 void thread_block(void);
 void thread_unblock(thread_t *t);  // safe from interrupt handlers
+
+// End a thread_sleep() early (nothing happens if it is not sleeping);
+// safe from interrupt handlers
+void thread_wake_sleeper(thread_t *t);
 
 // Threads waiting for the same event. A waiter re-checks its condition
 // after waking, so waking more threads than needed is harmless.

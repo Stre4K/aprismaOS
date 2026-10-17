@@ -391,6 +391,26 @@ static bool interrupt_wakes_pipe_writer(void)
     return killed;
 }
 
+// Ctrl+C must also end a process in the middle of a long sleep
+static bool interrupt_wakes_sleeper(void)
+{
+    const char *argv[] = { "sleep", "100" };
+    process_t *p = process_spawn_args("sleep", 2, argv, NULL);
+    if (p == NULL)
+        return false;
+    thread_sleep(100);  // let it start sleeping
+    process_interrupt_group(p->pgid);
+    for (int i = 0; i < 100 && !p->exited; i++)
+        thread_sleep(10);
+    if (!p->exited) {
+        printk("user test: Ctrl+C did not wake a sleeping process\n");
+        return false;  // it ends by itself after 100 s
+    }
+    bool killed;
+    process_wait_info(p, &killed);
+    return killed;
+}
+
 static void test_user(void)
 {
     int errors = 0;
@@ -434,6 +454,7 @@ static void test_user(void)
     // Pipes, descriptors and spawn options
     errors += !expect_exit("pipes", 0);
     errors += !interrupt_wakes_pipe_writer();
+    errors += !interrupt_wakes_sleeper();
 
     // The heap: brk and malloc, and running out of memory
     errors += !expect_exit("heaptest", 0);
