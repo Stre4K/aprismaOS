@@ -17,6 +17,7 @@
 #include <kernel/sched.h>
 #include <kernel/console.h>
 #include <kernel/fs.h>
+#include <kernel/time.h>
 #include <kernel/arch/memlayout.h>
 #include <kernel/mm/heap.h>
 #include <kernel/mm/pmm.h>
@@ -619,6 +620,9 @@ void syscall_dispatch(regs_t *regs)
             // kill() and Ctrl+C wake a sleeping process early
             thread_sleep_unless((uint32_t)SYSCALL_ARG0(regs), &process_current()->kill_pending);
             result = process_current()->kill_pending ? -EINTR : 0;
+            break;
+        case SYS_TIME:
+            result = time_now_ms();
             break;
         case SYS_KILL:
             result = process_kill_pid((int)SYSCALL_ARG0(regs));

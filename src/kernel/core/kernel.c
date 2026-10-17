@@ -19,6 +19,7 @@
 #include <kernel/mm/pmm.h>
 #include <kernel/mm/heap.h>
 #include <kernel/fs.h>
+#include <kernel/time.h>
 #include <kernel/sched.h>
 #include <kernel/console.h>
 #ifdef CONFIG_USERMODE
@@ -91,6 +92,16 @@ void kernel_main(uint32_t magic, uintptr_t mb_info_phys) {
 
     kheap_init();
     printk("[HEAP] Initialized\n");
+
+    // The real-time clock: files get their times from it
+    date_t now;
+    if (time_init()) {
+        time_to_date((long long)time_now(), &now);
+        printk("[RTC] %04d-%02d-%02d %02d:%02d:%02d UTC\n", now.year, now.month, now.day,
+               now.hour, now.minute, now.second);
+    } else {
+        printk("[RTC] Cannot read the clock; counting from 1970-01-01\n");
+    }
 
     int fs_entries = fs_init(mb_info_ptr);
     if (fs_entries >= 0)

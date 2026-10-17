@@ -52,6 +52,7 @@ typedef struct {
 #define SYS_CHDIR   21  // chdir(const char *path) -> 0
 #define SYS_GETCWD  22  // getcwd(char *buf, size_t size) -> length of the path
 #define SYS_KILL    23  // kill(int pid) -> 0; a negative pid kills the process group -pid
+#define SYS_TIME    24  // time() -> milliseconds since 1970-01-01 00:00:00 UTC (dates: abi/time.h)
 
 // kill ends a process (or every process of a group) the way Ctrl+C does:
 // when it next returns to user mode, waking it if it sleeps or waits for
