@@ -100,8 +100,16 @@ static int load(fs_node_t *dir)
     if (!dir->is_dir || dir->loaded || dir->ops->load_dir == NULL)
         return 0;
     int r = dir->ops->load_dir(dir);
-    if (r == 0)
+    if (r == 0) {
         dir->loaded = true;
+    } else {
+        // Drop what it managed to add, so that a later try starts afresh
+        while (dir->children) {
+            fs_node_t *child = dir->children;
+            dir->children = child->next;
+            free_tree(child);
+        }
+    }
     return r;
 }
 

@@ -20,6 +20,8 @@
 #include <kernel/mm/heap.h>
 #include <kernel/fs.h>
 #include <kernel/time.h>
+#include <kernel/drivers/ata.h>
+#include <kernel/fat.h>
 #include <kernel/sched.h>
 #include <kernel/console.h>
 #ifdef CONFIG_USERMODE
@@ -45,6 +47,29 @@ static void run_user_shell(void) {
     printk("[SHELL] /bin/sh exited with code %d\n", code);
 }
 #endif
+
+// A FAT filesystem on the first IDE disk goes to /disk
+static void mount_disk(void) {
+    blockdev_t *disk = ata_init();
+    if (disk == NULL) {
+        printk("[ATA] No disk\n");
+        return;
+    }
+    fat_info_t info;
+    int error;
+    fs_node_t *root = fat_mount(disk, &info, &error);
+    if (root == NULL) {
+        printk("[FAT] %s: no FAT16 or FAT32 filesystem\n", disk->name);
+        return;
+    }
+    if (fs_add_static("/disk", true, NULL, 0, time_now()) < 0 || fs_mount("/disk", root) < 0) {
+        printk("[FAT] Cannot mount /disk\n");
+        return;
+    }
+    printk("[FAT] /disk: FAT%d, %llu MiB%s%s%s (read-only)\n", info.bits,
+           (unsigned long long)(info.bytes >> 20), info.label[0] ? ", \"" : "", info.label,
+           info.label[0] ? "\"" : "");
+}
 
 // mb_info_phys is the physical address the bootloader passed in EBX
 void kernel_main(uint32_t magic, uintptr_t mb_info_phys) {
@@ -109,6 +134,8 @@ void kernel_main(uint32_t magic, uintptr_t mb_info_phys) {
         printk("[FS] Ramdisk mounted: %d files and directories; /tmp is writable\n", fs_entries);
     else
         printk("[FS] No ramdisk found\n");
+    if (fs_mounted())
+        mount_disk();  // needs a tree to mount it in
 
     if (cpuid_supported_check()) {
         cpuid_init();

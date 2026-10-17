@@ -71,6 +71,7 @@ void aprisma_kfree(void *ptr)
 }
 
 static const uint8_t motd[] = "Welcome!\n";
+static long baseline;  // blocks in use with a fresh tree (other tests may keep some, e.g. a FAT mount's)
 
 // A tree like the one the kernel builds: /etc/motd and /bin from the
 // ramdisk (read-only), /tmp writable
@@ -82,12 +83,12 @@ static void fresh_tree(void)
     aprisma_fs_add_static("bin/", true, NULL, 0, 1000);
     aprisma_fs_add_static("/tmp", true, NULL, 0, 1000);
     aprisma_fs_make_writable("/tmp");
+    baseline = live_blocks;
 }
 
 static long blocks_of_empty_tree(void)
 {
-    // root, etc, motd, bin, tmp
-    return 5;
+    return baseline;
 }
 
 /* ---- tests ---- */
