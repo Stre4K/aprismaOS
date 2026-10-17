@@ -7,12 +7,15 @@
 //   a < file       the first program reads the file instead of the keyboard
 //   a > file       the last program writes the file instead of the screen
 //   a >> file      ... adding to the end of the file
+//   a 2> file      a's error messages go to the file (2>> adds, 2>&1 sends
+//                  them where its output goes)
 //
 // Only /tmp is writable. Prompts are only shown when the input is the
 // keyboard, so "sh < script" or "... | sh" runs commands quietly.
 //
 // All programs of a pipeline form one process group, so Ctrl+C ends all of
-// them. Built in: exit [code], help. Ctrl+C at the prompt starts a new
+// them. Relative paths start at the current directory. Built in:
+// cd [dir], pwd, exit [code], help. Ctrl+C at the prompt starts a new
 // line, Ctrl+D at the prompt exits the shell.
 #include "ulib.h"
 
@@ -23,14 +26,24 @@
 typedef struct {
     char *argv[WORDS_MAX + 1];
     int argc;
+    char *err_file;    // "2> file", or NULL
+    int err_append;    // "2>>"
+    int err_to_out;    // "2>&1"
 } command_t;
 
 static void error(const char *a, const char *b)
 {
-    print("sh: ");
-    print(a);
-    print(b);
-    print("\n");
+    eprint("sh: ");
+    eprint(a);
+    eprint(b);
+    eprint("\n");
+}
+
+static void new_command(command_t *cmd)
+{
+    cmd->argc = 0;
+    cmd->err_file = 0;
+    cmd->err_append = cmd->err_to_out = 0;
 }
 
 /* ---- reading lines (from the keyboard, or from a pipe or file) ---- */
@@ -92,7 +105,7 @@ static int parse(const char *line, command_t cmds[STAGES_MAX], redirect_t *redir
     char *out = words;
     char **expect_file = 0;  // where the next word goes after '<' or '>'
     int output_stage = -1;   // the program "> file" belongs to
-    cmd->argc = 0;
+    new_command(cmd);
     redir->input = redir->output = 0;
     redir->append = 0;
 
@@ -125,8 +138,29 @@ static int parse(const char *line, command_t cmds[STAGES_MAX], redirect_t *redir
                 return -1;
             }
             cmd = &cmds[count++];
-            cmd->argc = 0;
+            new_command(cmd);
             in++;
+            continue;
+        }
+        // "2>" at the start of a word: where this program's errors go
+        if (c == '2' && in[1] == '>') {
+            if (expect_file) {
+                error("a file name is missing", "");
+                return -1;
+            }
+            if (cmd->err_file || cmd->err_to_out) {
+                error("only one '2>' per program", "");
+                return -1;
+            }
+            in += 2;
+            if (in[0] == '&' && in[1] == '1') {
+                cmd->err_to_out = 1;
+                in += 2;
+                continue;
+            }
+            cmd->err_append = *in == '>';
+            in += cmd->err_append;
+            expect_file = &cmd->err_file;
             continue;
         }
         if (c == '>' || c == '<') {
@@ -204,7 +238,11 @@ static void help(void)
           "  a < file     a reads the file (e.g. 'sort < /etc/motd')\n"
           "  a > file     a writes the file, only in /tmp (e.g. 'ls /bin > /tmp/list')\n"
           "  a >> file    a adds to the end of the file\n"
+          "  a 2> file    a's error messages go to the file (2>> adds, 2>&1 joins the output)\n"
+          "Paths not starting with / are relative to the current directory.\n"
           "Built in:\n"
+          "  cd [dir]     change the current directory (to / without dir)\n"
+          "  pwd          show the current directory\n"
           "  exit [code]  leave the shell\n"
           "  help         show this text\n");
 }
@@ -272,8 +310,25 @@ static void run(command_t cmds[], int count, const redirect_t *redir)
             out = ends[1];
         }
 
-        spawn_options_t options = { .fd = { in, out, 2 }, .pgid = pgid };
-        long pid = spawn(cmds[i].argv[0], cmds[i].argv, &options);
+        // Its error messages: stderr, its output, or a file
+        int err = cmds[i].err_to_out ? out : 2;
+        long pid = 0;
+        if (cmds[i].err_file) {
+            long fd = open(cmds[i].err_file,
+                           O_WRONLY | O_CREAT | (cmds[i].err_append ? O_APPEND : O_TRUNC));
+            if (fd < 0)
+                file_error(cmds[i].err_file, fd);
+            pid = fd < 0 ? -1 : 0;
+            err = fd < 0 ? 2 : (int)fd;
+        }
+
+        spawn_options_t options = { .fd = { in, out, err }, .pgid = pgid };
+        if (pid == 0)
+            pid = spawn(cmds[i].argv[0], cmds[i].argv, &options);
+        else
+            pid = 0;  // reported above; this program does not run
+        if (err != 2 && err != out)
+            close(err);
 
         // The children have their own copies now. Closing ours means a
         // reader sees the end once its writer exits, and a writer gets an
@@ -286,8 +341,9 @@ static void run(command_t cmds[], int count, const redirect_t *redir)
             last_out = 1;  // closed with it
         in = i < count - 1 ? ends[0] : 0;
 
-        if (pid < 0) {
-            report_spawn_error(cmds[i].argv[0], pid);
+        if (pid <= 0) {
+            if (pid < 0)
+                report_spawn_error(cmds[i].argv[0], pid);
             continue;
         }
         pids[started] = pid;
@@ -300,17 +356,23 @@ static void run(command_t cmds[], int count, const redirect_t *redir)
     if (last_out != 1)
         close(last_out);  // the pipeline stopped before its last program
 
+    // Wait for all of them before reporting, so a report cannot land in
+    // the middle of another program's output
+    long hows[STAGES_MAX];
+    int codes[STAGES_MAX];
+    for (int i = 0; i < started; i++)
+        hows[i] = wait((int)pids[i], &codes[i]);
+
     for (int i = 0; i < started; i++) {
-        int code;
-        long how = wait((int)pids[i], &code);
+        int code = codes[i];
         // A killed program was already reported by the kernel; stay quiet
         // after a normal exit with code 0
-        if (how == 0 && code != 0) {
-            print("sh: ");
-            print(names[i]);
-            print(" exited with code ");
-            print_int(code);
-            print("\n");
+        if (hows[i] == 0 && code != 0) {
+            eprint("sh: ");
+            eprint(names[i]);
+            eprint(" exited with code ");
+            eprint_int(code);
+            eprint("\n");
         }
     }
 }
@@ -339,16 +401,29 @@ int main(void)
             continue;
 
         char *name = cmds[0].argv[0];
-        int builtin = strcmp(name, "exit") == 0 || strcmp(name, "help") == 0;
-        if (builtin && (count > 1 || redir.input || redir.output)) {
+        int builtin = strcmp(name, "exit") == 0 || strcmp(name, "help") == 0 ||
+                      strcmp(name, "cd") == 0 || strcmp(name, "pwd") == 0;
+        if (builtin && (count > 1 || redir.input || redir.output || cmds[0].err_file || cmds[0].err_to_out)) {
             error(name, ": built-in commands cannot be part of a pipeline");
             continue;
         }
         if (strcmp(name, "exit") == 0)
             return cmds[0].argc > 1 ? to_int(cmds[0].argv[1]) : 0;
-        if (strcmp(name, "help") == 0)
+        if (strcmp(name, "help") == 0) {
             help();
-        else
+        } else if (strcmp(name, "cd") == 0) {
+            const char *dir = cmds[0].argc > 1 ? cmds[0].argv[1] : "/";
+            long r = chdir(dir);
+            if (r < 0)
+                error(dir, r == -ENOTDIR ? ": not a directory" : ": no such directory");
+        } else if (strcmp(name, "pwd") == 0) {
+            char cwd[256];
+            if (getcwd(cwd, sizeof(cwd)) >= 0) {
+                print(cwd);
+                print("\n");
+            }
+        } else {
             run(cmds, count, &redir);
+        }
     }
 }

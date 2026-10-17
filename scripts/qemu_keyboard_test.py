@@ -28,7 +28,7 @@ KEY_DELAY = 0.03  # seconds between key events
 
 # QMP qcodes for characters that are not plain lowercase letters or digits
 QCODES = {" ": "spc", "-": "minus", ".": "dot", "/": "slash", "=": "equal", ",": "comma", "'": "apostrophe"}
-SHIFTED = {'"': "apostrophe", "|": "backslash", "<": "comma", ">": "dot"}
+SHIFTED = {'"': "apostrophe", "|": "backslash", "<": "comma", ">": "dot", "&": "7"}
 
 
 class Qmp:
