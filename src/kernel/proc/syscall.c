@@ -168,6 +168,7 @@ static void node_stat(const fs_node_t *node, stat_t *st)
     st->type = node->is_dir ? STAT_DIR : STAT_FILE;
     st->size = node->is_dir ? 0 : node->size;
     st->writable = node->writable;
+    st->mtime = node->mtime;
 }
 
 static int64_t sys_stat(uint64_t user_path_arg, uint64_t user_st)
@@ -321,6 +322,7 @@ static int64_t sys_readdir(uint64_t user_dir, uint64_t index, uint64_t user_entr
         if (node) {
             entry.size = node->is_dir ? 0 : node->size;
             entry.is_dir = node->is_dir;
+            entry.mtime = node->mtime;
             strncpy(entry.name, node->name, sizeof(entry.name) - 1);
         }
     }

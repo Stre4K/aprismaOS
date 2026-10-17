@@ -255,6 +255,7 @@ void file_stat(file_t *f, stat_t *st)
 {
     st->size = 0;
     st->writable = 0;
+    st->mtime = 0;
     switch (f->type) {
         case FILE_CONSOLE:
             st->type = STAT_CONSOLE;
@@ -263,6 +264,7 @@ void file_stat(file_t *f, stat_t *st)
             st->type = f->node->is_dir ? STAT_DIR : STAT_FILE;
             st->size = f->node->size;
             st->writable = f->node->writable;
+            st->mtime = f->node->mtime;
             break;
         default:
             st->type = STAT_PIPE;

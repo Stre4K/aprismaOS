@@ -39,6 +39,7 @@ typedef struct fs_node {
     struct fs_node *parent;   // the root is its own parent
     struct fs_node *children; // directories: entries in the order they were made
     struct fs_node *next;     // next entry of the parent
+    uint64_t mtime;           // last change, seconds since 1970 (UTC)
     int open_count;           // open files using it
     bool removed;             // removed while open: freed with the last close
 } fs_node_t;
@@ -57,9 +58,14 @@ bool fs_mounted(void);
 // Start an empty tree: a read-only root (fs_init does this)
 void fs_tree_init(void);
 
-// Add a read-only ramdisk entry, making missing parent directories; data
-// stays where it is. A path that exists already is left alone.
-int fs_add_static(const char *path, bool is_dir, const uint8_t *data, size_t size);
+// Add a read-only ramdisk entry, making missing parent directories (with
+// the same time); data stays where it is. A path that exists already is
+// left alone.
+int fs_add_static(const char *path, bool is_dir, const uint8_t *data, size_t size, uint64_t mtime);
+
+// Where the time for new and changed files comes from (seconds since 1970);
+// without a clock they get 0
+void fs_set_clock(uint64_t (*now)(void));
 
 // Make an existing directory writable (/tmp)
 int fs_make_writable(const char *path);
@@ -120,6 +126,7 @@ typedef struct {
     const uint8_t *data;
     size_t size;
     char type;               // '0' file, '5' directory, others are skipped
+    uint64_t mtime;          // seconds since 1970
 } tar_entry_t;
 
 // Call `entry` for every member of a ustar archive. Returns the number of

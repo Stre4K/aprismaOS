@@ -102,6 +102,7 @@ void kernel_main(uint32_t magic, uintptr_t mb_info_phys) {
     } else {
         printk("[RTC] Cannot read the clock; counting from 1970-01-01\n");
     }
+    fs_set_clock(time_now);
 
     int fs_entries = fs_init(mb_info_ptr);
     if (fs_entries >= 0)

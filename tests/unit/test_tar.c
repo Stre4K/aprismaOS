@@ -163,3 +163,22 @@ TEST(tar_empty_archive)
     CHECK_INT_EQ(aprisma_tar_parse(archive, 2 * BLOCK, collect, &c), 0);
     CHECK_INT_EQ(aprisma_tar_parse(archive, 0, collect, &c), 0);  // no bytes at all
 }
+
+TEST(tar_reads_the_modification_time)
+{
+    memset(archive, 0, sizeof(archive));
+    size_t off = add_member(archive, 0, NULL, "./etc/motd", '0', "hi\n", 3);
+    // Set the time (octal seconds) and fix the checksum, as add_member does
+    uint8_t *h = archive;
+    memcpy(h + 136, "14524770462", 11);  // 1700000050
+    memset(h + 148, ' ', 8);
+    unsigned sum = 0;
+    for (int i = 0; i < BLOCK; i++)
+        sum += h[i];
+    snprintf((char *)h + 148, 8, "%06o", sum);
+    h[155] = ' ';
+
+    collected_t c = { 0 };
+    CHECK_INT_EQ(aprisma_tar_parse(archive, off + 2 * BLOCK, collect, &c), 1);
+    CHECK_INT_EQ(c.entries[0].mtime, 1700000050);
+}

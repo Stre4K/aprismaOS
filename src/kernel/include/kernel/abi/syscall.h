@@ -90,6 +90,7 @@ typedef struct {
     unsigned long size;  // bytes in a file (0 otherwise)
     int type;            // STAT_*
     int writable;        // a file or directory that may be changed
+    unsigned long mtime; // last change, seconds since 1970 (UTC); 0 for the console and pipes
 } stat_t;
 
 // Descriptors: 0, 1 and 2 are stdin, stdout and stderr, open and close
@@ -109,6 +110,7 @@ typedef struct {
     unsigned long size;          // file size in bytes (0 for directories)
     int is_dir;
     char name[DIRENT_NAME_MAX];  // the name inside the directory, not a full path
+    unsigned long mtime;         // last change, seconds since 1970 (UTC)
 } dirent_t;
 
 // Errors are returned as negative values
