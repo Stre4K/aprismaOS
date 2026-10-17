@@ -125,6 +125,37 @@ long kill(int pid)
     return syscall3(SYS_KILL, pid, 0, 0);
 }
 
+long time_ms(void)
+{
+    return syscall3(SYS_TIME, 0, 0, 0);
+}
+
+long time(void)
+{
+    return time_ms() / 1000;
+}
+
+static void put_number(char *out, int value, int digits)
+{
+    for (int i = digits - 1; i >= 0; i--) {
+        out[i] = (char)('0' + value % 10);
+        value /= 10;
+    }
+}
+
+void format_time(char out[20], long seconds)
+{
+    date_t d;
+    time_to_date(seconds, &d);
+    memcpy(out, "0000-00-00 00:00:00", 20);
+    put_number(out, d.year, 4);
+    put_number(out + 5, d.month, 2);
+    put_number(out + 8, d.day, 2);
+    put_number(out + 11, d.hour, 2);
+    put_number(out + 14, d.minute, 2);
+    put_number(out + 17, d.second, 2);
+}
+
 long readdir(const char *dir, size_t index, dirent_t *entry)
 {
     return syscall3(SYS_READDIR, (long)dir, (long)index, (long)entry);

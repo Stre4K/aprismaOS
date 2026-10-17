@@ -7,6 +7,7 @@
 #define ULIB_H
 
 #include <kernel/abi/syscall.h>
+#include <kernel/abi/time.h>
 #include <stddef.h>
 
 // Raw system call: number in rax, arguments in rdi, rsi, rdx, result in rax
@@ -44,6 +45,11 @@ long getcwd(char *buf, size_t size);
 long wait(int pid, int *code);
 long waitpid(int pid, int *code, int flags);  // WAIT_NOHANG: -EAGAIN while it runs
 long kill(int pid);                            // a negative pid: the process group -pid
+long time_ms(void);  // milliseconds since 1970-01-01 00:00 UTC
+long time(void);     // seconds since then
+
+// "2026-10-17 12:34:56" (20 bytes with the NUL) for seconds since 1970
+void format_time(char out[20], long seconds);
 long readdir(const char *dir, size_t index, dirent_t *entry);
 long brk(void *end);           // new end of the heap, or -ENOMEM
 void *sbrk(long increment);    // old end of the heap, or (void *)-1
