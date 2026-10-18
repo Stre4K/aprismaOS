@@ -267,7 +267,10 @@ static void test_threads(void)
 
     kheap_stats_t heap_after;
     kheap_get_stats(&heap_after);
-    if (thread_count() != threads_before || pmm_free_pages() != pages_before ||
+    // The kernel heap may have shrunk meanwhile (giving pages back), but
+    // its blocks and every page must add up
+    if (thread_count() != threads_before ||
+        pmm_free_pages() + heap_after.heap_size / 4096 != pages_before + heap_before.heap_size / 4096 ||
         heap_after.used_blocks != heap_before.used_blocks) {
         printk("threads test: exited threads leaked (threads %u -> %u, free pages %u -> %u, heap blocks %u -> %u)\n",
                (unsigned)threads_before, (unsigned)thread_count(), pages_before, pmm_free_pages(),
@@ -521,7 +524,10 @@ static void test_user(void)
 
     kheap_stats_t heap_after;
     kheap_get_stats(&heap_after);
-    if (thread_count() != threads_before || pmm_free_pages() != pages_before ||
+    // The kernel heap may have shrunk meanwhile (giving pages back), but
+    // its blocks and every page must add up
+    if (thread_count() != threads_before ||
+        pmm_free_pages() + heap_after.heap_size / 4096 != pages_before + heap_before.heap_size / 4096 ||
         heap_after.used_blocks != heap_before.used_blocks) {
         printk("user test: processes leaked (threads %u -> %u, free pages %u -> %u, heap blocks %u -> %u)\n",
                (unsigned)threads_before, (unsigned)thread_count(), pages_before, pmm_free_pages(),

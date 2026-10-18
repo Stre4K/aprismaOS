@@ -107,6 +107,22 @@ def find_initrd(kernel, explicit, disabled):
     return candidate if os.path.exists(candidate) else None
 
 
+def find_disk(kernel, explicit, disabled):
+    """The disk image for the first IDE drive: --disk, or disk.img next to the kernel."""
+    if disabled:
+        return None
+    if explicit:
+        return os.path.abspath(explicit)
+    if kernel is None:
+        return None
+    candidate = os.path.join(os.path.dirname(os.path.abspath(kernel)), "disk.img")
+    return candidate if os.path.exists(candidate) else None
+
+
+def disk_args(disk):
+    return ["-drive", f"file={disk},format=raw,if=ide,index=0,media=disk"] if disk else []
+
+
 def read_serial_log(path):
     """The kernel's serial output so far, with \\r\\n turned into \\n."""
     try:
@@ -212,6 +228,8 @@ def main():
                         help="screen text that marks the end of the boot (default: keyboard initialized)")
     parser.add_argument("--initrd", help="ramdisk to load with --kernel (default: initrd.tar next to the kernel)")
     parser.add_argument("--no-initrd", action="store_true", help="boot --kernel without a ramdisk")
+    parser.add_argument("--disk", help="disk image for the first IDE drive (default: disk.img next to --kernel)")
+    parser.add_argument("--no-disk", action="store_true", help="boot without a disk")
     parser.add_argument("--no-serial", action="store_true",
                         help="boot without a serial port (-serial none)")
     parser.add_argument("--check-serial", action="store_true",
@@ -245,6 +263,7 @@ def main():
                 boot_args += ["-initrd", initrd]
         else:
             boot_args = ["-cdrom", os.path.abspath(args.iso), "-boot", "d"]
+        boot_args += disk_args(find_disk(args.kernel, args.disk, args.no_disk))
 
         qemu = subprocess.Popen(
             [qemu_bin, *boot_args, "-m", "128M", "-display", "none", "-no-reboot",

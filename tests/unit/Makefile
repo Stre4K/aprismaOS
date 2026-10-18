@@ -20,7 +20,8 @@ LIBC_DIR    := $(ROOTDIR)/src/libc
 LIBC_SRCS   := $(filter-out $(LIBC_DIR)/stdio/putchar.c $(LIBC_DIR)/time/sleep.c, \
                  $(shell find $(LIBC_DIR) -name '*.c'))
 KERNEL_SRCS := $(ROOTDIR)/src/kernel/core/bitmap.c $(ROOTDIR)/src/kernel/fs/tar.c \
-               $(ROOTDIR)/src/kernel/fs/tree.c $(ROOTDIR)/src/kernel/drivers/rtc.c
+               $(ROOTDIR)/src/kernel/fs/tree.c $(ROOTDIR)/src/kernel/fs/memfs.c \
+               $(ROOTDIR)/src/kernel/fs/fat.c $(ROOTDIR)/src/kernel/drivers/rtc.c
 # The user programs' allocator (its sbrk, print and exit come from test_malloc.c;
 # the filesystem tree's kmalloc and kfree from test_fs.c)
 USER_SRCS   := $(ROOTDIR)/src/user/lib/malloc.c
@@ -36,7 +37,12 @@ UUT_CFLAGS := -std=gnu11 -O2 -g -ffreestanding -fno-builtin -nostdinc \
 
 TEST_SRCS  := $(wildcard test_*.c) runner.c capture.c
 TEST_OBJS  := $(patsubst %.c,$(BUILD_DIR)/%.o,$(TEST_SRCS))
-TEST_CFLAGS := -std=gnu11 -O1 -g -Wall -Wextra -Werror -I$(ROOTDIR)/src/kernel/include
+# FAT images made with mkfs.fat and mtools (dosfstools, mtools)
+FAT_DIR    := $(BUILD_DIR)/fat
+FAT_IMAGES := $(FAT_DIR)/fat16.img
+
+TEST_CFLAGS := -std=gnu11 -O1 -g -Wall -Wextra -Werror -I$(ROOTDIR)/src/kernel/include \
+               -DFAT_TEST_DIR=\"$(FAT_DIR)\"
 
 BIN := $(BUILD_DIR)/unit-tests
 
@@ -44,8 +50,11 @@ BIN := $(BUILD_DIR)/unit-tests
 
 all: run
 
-run: $(BIN)
+run: $(BIN) $(FAT_IMAGES)
 	@$(BIN) $(T)
+
+$(FAT_IMAGES): make_fat_images.sh
+	@sh make_fat_images.sh $(FAT_DIR)
 
 $(BIN): $(TEST_OBJS) $(UUT_OBJS)
 	@$(CC) -o $@ $^ -lm

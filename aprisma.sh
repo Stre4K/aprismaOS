@@ -239,6 +239,14 @@ if [ -n "$BUILD_TYPE" ]; then
         OBJ_DIR="$OBJ_DIR" \
         $MAKE install)
     done
+
+    # The disk QEMU gets as its first IDE drive (mounted at /disk), if
+    # dosfstools and mtools are installed
+    if "$ROOTDIR/scripts/make_disk.sh" "$SYSROOT/boot/disk.img" "$SYSROOT/boot/initrd.tar" 2>/dev/null; then
+        echo "${GREEN}[status] Disk image: $SYSROOT/boot/disk.img${NC}"
+    else
+        echo "${YELLOW}[status] No disk image (install dosfstools and mtools for /disk)${NC}"
+    fi
 fi
 
 # ============================
@@ -273,6 +281,8 @@ fi
 # Optionally run QEMU
 # ============================
 if [ -n "$RUN_MODE" ]; then
+    DISK_ARGS=""
+    [ -f "$SYSROOT/boot/disk.img" ] && DISK_ARGS="-drive file=$SYSROOT/boot/disk.img,format=raw,if=ide,index=0,media=disk"
     case "$RUN_MODE" in
         kernel)
             RUN_KERNEL=${RUN_PATH:-"$KERNEL_PATH"}
@@ -285,13 +295,13 @@ if [ -n "$RUN_MODE" ]; then
             echo "Serial console on this terminal (Ctrl+A C: QEMU monitor, Ctrl+A X: quit)"
             INITRD_ARGS=""
             [ -f "$SYSROOT/boot/initrd.tar" ] && INITRD_ARGS="-initrd $SYSROOT/boot/initrd.tar"
-            $QEMU -kernel "$RUN_KERNEL" $INITRD_ARGS -serial mon:stdio
+            $QEMU -kernel "$RUN_KERNEL" $INITRD_ARGS $DISK_ARGS -serial mon:stdio
             ;;
         iso)
             RUN_ISO=${RUN_PATH:-"$ISO_OUTPUT"}
             echo "Running ISO in QEMU: $RUN_ISO"
             echo "Serial console on this terminal (Ctrl+A C: QEMU monitor, Ctrl+A X: quit)"
-            $QEMU -cdrom "$RUN_ISO" -boot d -serial mon:stdio $QEMU_GDB_DEBUG
+            $QEMU -cdrom "$RUN_ISO" -boot d $DISK_ARGS -serial mon:stdio $QEMU_GDB_DEBUG
             ;;
         *)
             echo "Unknown run mode: $RUN_MODE"
